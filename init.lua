@@ -25,6 +25,7 @@ require('packer').startup(function()
 		'nvim-telescope/telescope.nvim',
 		requires = { {'nvim-lua/plenary.nvim'} }
 	}
+	use {'nvim-telescope/telescope-fzf-native.nvim', run = 'make' }
 
 	use 'ellisonleao/gruvbox.nvim'
 	use 'kyazdani42/nvim-web-devicons'
@@ -145,13 +146,38 @@ vim.api.nvim_create_autocmd({ "BufWinEnter" }, {
 	end,
 })
 
+local my_grep = function()
+	local cword = vim.fn.expand("<cword>")
+	require("telescope.builtin").grep_string({
+		search = "",
+		default_text = "'" .. cword,
+		on_complete = cword ~= "" and {
+			function(picker)
+				local mode = vim.fn.mode()
+				local keys = mode ~= "n" and "<ESC>" or ""
+				vim.api.nvim_feedkeys(
+				vim.api.nvim_replace_termcodes(keys .. [[$v^ll<C-g>]], true, false, true),
+				"n",
+				true
+				)
+				-- should you have more callbacks, just pop the first one
+				table.remove(picker._completion_callbacks, 1)
+				-- copy mappings s.t. eg <C-n>, <C-p> works etc
+				vim.tbl_map(function(mapping)
+					vim.api.nvim_buf_set_keymap(0, "s", mapping.lhs, mapping.rhs, {})
+				end, vim.api.nvim_buf_get_keymap(0, "i"))
+			end,
+		} or nil,
+	})
+end
+
 local wk = require('which-key')
 wk.register({
 	["<leader>"] = {
 		f = {
 			name = "Fuzzy finder",
 			f = { "<cmd> Telescope find_files<cr>", "Find files" },
-			g = { "<cmd> Telescope live_grep<cr>", "Live grep" },
+			g = { my_grep, "Live grep" },
 			b = { "<cmd> Telescope buffers<cr>", "Buffers" },
 			c = { "<cmd> Telescope command_history<cr>", "Command history" },
 			s = { "<cmd> Telescope search_history<cr>", "Search history" },
@@ -247,7 +273,15 @@ require('telescope').setup({
 		mappings = {
 		},
 	},
+	extensions = {
+		fzf = {
+			fuzzy = true,
+			override_generic_sorter = true,
+			override_file_sorter = true,
+		}
+	}
 })
+require('telescope').load_extension('fzf')
 
 local rt = require("rust-tools")
 rt.setup({
