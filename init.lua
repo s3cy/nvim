@@ -26,6 +26,7 @@ require('packer').startup(function()
 		requires = { {'nvim-lua/plenary.nvim'} }
 	}
 	use {'nvim-telescope/telescope-fzf-native.nvim', run = 'make' }
+	use 'stevearc/dressing.nvim'
 
 	use 'ellisonleao/gruvbox.nvim'
 	use 'kyazdani42/nvim-web-devicons'
@@ -130,23 +131,32 @@ require('lualine').setup {
 	},
 }
 
-require("nvim-tree").setup()
+require("nvim-tree").setup({
+	view = {
+		mappings = {
+			list = {
+				{ key = "?", action = "toggle_help" },
+			},
+		},
+	},
+})
 
+-- Open 'trouble' instead of quickfix
 local trouble = require('trouble.providers.telescope')
 vim.api.nvim_create_autocmd({ "BufWinEnter" }, {
 	pattern = { "quickfix" },
 	callback = function()
-	local ok, trouble = pcall(require, "trouble")
-	if ok then
-		vim.defer_fn(function()
-			vim.cmd('cclose')
-			trouble.open('quickfix')
-		end, 0)
-	end
+		local ok, trouble = pcall(require, "trouble")
+		if ok then
+			vim.defer_fn(function()
+				vim.cmd('cclose')
+				trouble.open('quickfix')
+			end, 0)
+		end
 	end,
 })
 
-local my_grep = function()
+local grep_string = function()
 	local cword = vim.fn.expand("<cword>")
 	require("telescope.builtin").grep_string({
 		search = "",
@@ -174,14 +184,8 @@ end
 local wk = require('which-key')
 wk.register({
 	["<leader>"] = {
-		f = {
-			name = "Fuzzy finder",
-			f = { "<cmd> Telescope find_files<cr>", "Find files" },
-			g = { my_grep, "Live grep" },
-			b = { "<cmd> Telescope buffers<cr>", "Buffers" },
-			c = { "<cmd> Telescope command_history<cr>", "Command history" },
-			s = { "<cmd> Telescope search_history<cr>", "Search history" },
-		},
+		f = { "<cmd> Telescope find_files<cr>", "Find files" },
+		g = { grep_string, "Grep string" },
 		t = {
 			name = "Trouble",
 			t = { "<cmd> TroubleToggle<cr>", "Toggle" },
@@ -190,26 +194,28 @@ wk.register({
 			l = { "<cmd> TroubleToggle loclist<cr>", "Loclist" },
 			q = { "<cmd> TroubleToggle quickfix<cr>", "Quickfix" },
 		},
-		e = {
-			name = "File explorer",
-			e = { "<cmd> NvimTreeToggle<cr>", "Toggle" },
-			f = { "<cmd> NvimTreeFindFile<cr>", "Find current file in the explorer" },
-			c = { "<cmd> NvimTreeCollapse<cr>", "Collapse" },
-		},
+		e = { "<cmd> NvimTreeToggle<cr>", "File explorer" },
+		a = { vim.lsp.buf.code_action, "Lsp code action" },
+		r = { vim.lsp.buf.rename, "Lsp rename" },
+	},
+	["g"] = {
+		r = { "<cmd> Telescope lsp_references<cr>", "Lsp references" },
+		i = { "<cmd> Telescope lsp_implementations<cr>", "Lsp implementations" },
 	},
 	["]"] = {
 		q = { function() require('trouble').next({skip_groups = true, jump = true}); end, "Next trouble item" },
 		Q = { function() require('trouble').last({skip_groups = true, jump = true}); end, "Last trouble item" },
-		a = { function() require('illuminate').goto_next_reference(false); end, "Next reference" },
+		r = { function() require('illuminate').goto_next_reference(true); end, "Next reference" },
 	},
 	["["] = {
 		q = { function() require('trouble').previous({skip_groups = true, jump = true}); end, "Previous trouble item" },
 		Q = { function() require('trouble').first({skip_groups = true, jump = true}); end, "First trouble item" },
-		a = { function() require('illuminate').goto_prev_reference(false); end, "Previous reference" },
+		r = { function() require('illuminate').goto_prev_reference(true); end, "Previous reference" },
 	},
 	["s"] = {
 		name = "Swap"
-	}
+	},
+	K = { vim.lsp.buf.hover, "Lsp hover" }
 })
 
 require('nvim-treesitter.configs').setup({
@@ -286,12 +292,6 @@ require('telescope').load_extension('fzf')
 local rt = require("rust-tools")
 rt.setup({
 	server = {
-		on_attach = function(_, bufnr)
-			-- Hover actions
-			vim.keymap.set("n", "K", rt.hover_actions.hover_actions, { buffer = bufnr })
-			-- Code action groups
-			vim.keymap.set("n", "ga", rt.code_action_group.code_action_group, { buffer = bufnr })
-		end,
 	},
 	dap = {
 	}
