@@ -1,3 +1,5 @@
+require('impatient')
+
 require('packer').startup(function()
 	use 'wbthomason/packer.nvim'
 
@@ -7,7 +9,15 @@ require('packer').startup(function()
 	use 'williamboman/mason-lspconfig.nvim'
 
 	use 'neovim/nvim-lspconfig'
-	use 'simrat39/rust-tools.nvim'
+	use { 'simrat39/rust-tools.nvim', config = function()
+		local rt = require("rust-tools")
+		rt.setup({
+			server = {
+			},
+			dap = {
+			}
+		})
+	end}
 
 	use 'hrsh7th/nvim-cmp'
 	use 'hrsh7th/cmp-nvim-lsp'
@@ -43,8 +53,42 @@ require('packer').startup(function()
 		require('nvim-surround').setup()
 	end}
 	use 'RRethy/vim-illuminate'
-	use	'nvim-lualine/lualine.nvim'
-	use 'nvim-tree/nvim-tree.lua'
+	use	{ 'nvim-lualine/lualine.nvim', config = function()
+		require('lualine').setup {
+			options = {
+				theme = 'gruvbox-material',
+				component_separators = { left = '', right = ''},
+				section_separators = { left = '', right = ''},
+			},
+			sections = {
+				lualine_a = {},
+				lualine_b = {{'filename', path=1}},
+				lualine_c = {'branch', 'diff', 'diagnostics'},
+				lualine_x = {'filetype', 'progress'},
+				lualine_y = {},
+				lualine_z = {},
+			},
+			inactive_sections = {
+				lualine_a = {},
+				lualine_b = {},
+				lualine_c = {{'filename', path=1}},
+				lualine_x = {'progress'},
+				lualine_y = {},
+				lualine_z = {}
+			},
+		}
+	end}
+	use { 'nvim-tree/nvim-tree.lua', config = function()
+		require("nvim-tree").setup({
+			view = {
+				mappings = {
+					list = {
+						{ key = "?", action = "toggle_help" },
+					},
+				},
+			},
+		})
+	end}
 	use { 'j-hui/fidget.nvim', config = function()
 		require('fidget').setup()
 	end}
@@ -65,8 +109,6 @@ require('packer').startup(function()
 	end}
 	use 'sindrets/diffview.nvim'
 end)
-
-require('impatient')
 
 vim.opt.number = true
 vim.opt.relativenumber = true
@@ -120,40 +162,6 @@ vim.api.nvim_create_autocmd({ "BufWritePre" }, {
 	command = [[%s/\s\+$//e]],
 })
 
-require('lualine').setup {
-	options = {
-		theme = 'gruvbox-material',
-		component_separators = { left = '', right = ''},
-		section_separators = { left = '', right = ''},
-	},
-	sections = {
-		lualine_a = {},
-		lualine_b = {{'filename', path=1}},
-		lualine_c = {'branch', 'diff', 'diagnostics'},
-		lualine_x = {'filetype', 'progress'},
-		lualine_y = {},
-		lualine_z = {},
-	},
-	inactive_sections = {
-		lualine_a = {},
-		lualine_b = {},
-		lualine_c = {{'filename', path=1}},
-		lualine_x = {'progress'},
-		lualine_y = {},
-		lualine_z = {}
-	},
-}
-
-require("nvim-tree").setup({
-	view = {
-		mappings = {
-			list = {
-				{ key = "?", action = "toggle_help" },
-			},
-		},
-	},
-})
-
 -- Open 'trouble' instead of quickfix
 local trouble = require('trouble.providers.telescope')
 vim.api.nvim_create_autocmd({ "BufWinEnter" }, {
@@ -199,6 +207,11 @@ wk.register({
 	["<leader>"] = {
 		f = { "<cmd> Telescope find_files<cr>", "Find files" },
 		g = { grep_string, "Grep string" },
+		d = {
+			name = "Diffview",
+			d = { "<cmd> DiffviewOpen<cr>", "Open" },
+			f = { "<cmd> DiffviewFileHistory<cr>", "File history" },
+		},
 		t = {
 			name = "Trouble",
 			t = { "<cmd> TroubleToggle<cr>", "Toggle" },
@@ -228,7 +241,7 @@ wk.register({
 	["s"] = {
 		name = "Swap"
 	},
-	K = { vim.lsp.buf.hover, "Lsp hover" }
+	["K"] = { vim.lsp.buf.hover, "Lsp hover" }
 })
 
 vim.keymap.set("n", "s", "<cmd>lua require('substitute').operator()<cr>", { noremap = true })
@@ -330,7 +343,7 @@ nnoremap <A-T> :tabprevious<CR>
 tnoremap <A-t> <C-\><C-n><C-w>:tabnext<CR>
 tnoremap <A-T> <C-\><C-n><C-w>:tabprevious<CR>
 
-" Double tab esc to exit terminal insert mode
+" Esc to exit terminal insert mode
 tnoremap <Esc> <C-\><C-n>
 
 " `Q` to edit the default register; `"aQ` to edit register 'a'.
@@ -398,14 +411,6 @@ require('telescope').setup({
 	}
 })
 require('telescope').load_extension('fzf')
-
-local rt = require("rust-tools")
-rt.setup({
-	server = {
-	},
-	dap = {
-	}
-})
 
 local sign = function(opts)
 	vim.fn.sign_define(opts.name, {
