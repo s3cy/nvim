@@ -1,7 +1,9 @@
 require('packer').startup(function()
 	use 'wbthomason/packer.nvim'
 
-	use 'williamboman/mason.nvim'
+	use { 'williamboman/mason.nvim', config = function()
+		require("mason").setup()
+	end}
 	use 'williamboman/mason-lspconfig.nvim'
 
 	use 'neovim/nvim-lspconfig'
@@ -34,16 +36,34 @@ require('packer').startup(function()
 	use 'dstein64/vim-startuptime'
 	use 'lewis6991/impatient.nvim'
 
-	use 'numToStr/Comment.nvim'
-	use 'kylechui/nvim-surround'
+	use { 'numToStr/Comment.nvim', config = function()
+		require('Comment').setup()
+	end}
+	use { 'kylechui/nvim-surround', config = function()
+		require('nvim-surround').setup()
+	end}
 	use 'RRethy/vim-illuminate'
 	use	'nvim-lualine/lualine.nvim'
 	use 'nvim-tree/nvim-tree.lua'
-	use 'j-hui/fidget.nvim'
+	use { 'j-hui/fidget.nvim', config = function()
+		require('fidget').setup()
+	end}
 	use 'folke/trouble.nvim'
 	use 'folke/which-key.nvim'
-	use 'samjwill/nvim-unception'
-	use 'rmagatti/auto-session'
+	-- use 'samjwill/nvim-unception'
+	-- use { 'rmagatti/auto-session', config = function()
+	-- 	require('auto-session').setup()
+	-- end}
+	use { 'akinsho/toggleterm.nvim', config = function()
+		require("toggleterm").setup({
+			size = 20,
+			shade_terminals = false,
+		})
+	end}
+	use { 'gbprod/substitute.nvim', config = function()
+		require('substitute').setup()
+	end}
+	use 'sindrets/diffview.nvim'
 end)
 
 require('impatient')
@@ -99,13 +119,6 @@ vim.api.nvim_create_autocmd({ "BufWritePre" }, {
 	pattern = { "*" },
 	command = [[%s/\s\+$//e]],
 })
-
-
-require("mason").setup()
-require('Comment').setup()
-require('nvim-surround').setup()
-require('auto-session').setup()
-require('fidget').setup()
 
 require('lualine').setup {
 	options = {
@@ -218,6 +231,114 @@ wk.register({
 	K = { vim.lsp.buf.hover, "Lsp hover" }
 })
 
+vim.keymap.set("n", "s", "<cmd>lua require('substitute').operator()<cr>", { noremap = true })
+vim.keymap.set("n", "ss", "<cmd>lua require('substitute').line()<cr>", { noremap = true })
+vim.keymap.set("n", "S", "<cmd>lua require('substitute').eol()<cr>", { noremap = true })
+vim.keymap.set("x", "s", "<cmd>lua require('substitute').visual()<cr>", { noremap = true })
+vim.keymap.set("n", "<leader>s", "<cmd>lua require('substitute.range').operator()<cr>", { noremap = true })
+vim.keymap.set("x", "<leader>s", "<cmd>lua require('substitute.range').visual()<cr>", { noremap = true })
+vim.keymap.set("n", "<leader>ss", "<cmd>lua require('substitute.range').word()<cr>", { noremap = true })
+
+vim.cmd([[
+autocmd TermEnter term://*toggleterm#*
+      \ tnoremap <silent><c-t> <Cmd>exe v:count1 . "ToggleTerm"<CR>
+nnoremap <silent><c-t> <Cmd>exe v:count1 . "ToggleTerm"<CR>
+inoremap <silent><c-t> <Esc><Cmd>exe v:count1 . "ToggleTerm"<CR>
+
+" `Alt-w` is the universal window swiching key for both regular buffers and
+" terminal buffers.
+nnoremap <A-w> <C-w>
+nnoremap <A-w><A-b> <C-w>b
+nnoremap <A-w><A-c> <C-w>c
+nnoremap <A-w><A-d> <C-w>d
+nnoremap <A-w><A-f> <C-w>f
+nmap <A-w><A-g> <C-w>g
+nnoremap <A-w><A-h> <C-w>h
+nnoremap <A-w><A-i> <C-w>i
+nnoremap <A-w><A-j> <C-w>j
+nnoremap <A-w><A-k> <C-w>k
+nnoremap <A-w><A-l> <C-w>l
+nnoremap <A-w><A-n> <C-w>n
+nnoremap <A-w><A-o> <C-w>o
+nnoremap <A-w><A-p> <C-w>p
+nnoremap <A-w><A-q> <C-w>q
+nnoremap <A-w><A-r> <C-w>r
+nnoremap <A-w><A-s> <C-w>s
+nnoremap <A-w><A-t> <C-w>t
+nnoremap <A-w><A-v> <C-w>v
+nnoremap <A-w><A-w> <C-w>w
+nnoremap <A-w><A-x> <C-w>x
+nnoremap <A-w><A-z> <C-w>z
+nnoremap <A-w><A-]> <C-w>]
+nnoremap <A-w><A-^> <C-w>^
+nnoremap <A-w><A-_> <C-w>_
+
+tnoremap <A-w> <C-\><C-n><C-w>
+tnoremap <A-w><A-b> <C-\><C-n><C-w>b
+tnoremap <A-w><A-c> <C-\><C-n><C-w>c
+tnoremap <A-w><A-d> <C-\><C-n><C-w>d
+tnoremap <A-w><A-f> <C-\><C-n><C-w>f
+tmap <A-w><A-g> <C-\><C-n><C-w>g
+tnoremap <A-w><A-h> <C-\><C-n><C-w>h
+tnoremap <A-w><A-i> <C-\><C-n><C-w>i
+tnoremap <A-w><A-j> <C-\><C-n><C-w>j
+tnoremap <A-w><A-k> <C-\><C-n><C-w>k
+tnoremap <A-w><A-l> <C-\><C-n><C-w>l
+tnoremap <A-w><A-n> <C-\><C-n><C-w>n
+tnoremap <A-w><A-o> <C-\><C-n><C-w>o
+tnoremap <A-w><A-p> <C-\><C-n><C-w>p
+tnoremap <A-w><A-q> <C-\><C-n><C-w>q
+tnoremap <A-w><A-r> <C-\><C-n><C-w>r
+tnoremap <A-w><A-s> <C-\><C-n><C-w>s
+tnoremap <A-w><A-t> <C-\><C-n><C-w>t
+tnoremap <A-w><A-v> <C-\><C-n><C-w>v
+tnoremap <A-w><A-w> <C-\><C-n><C-w>w
+tnoremap <A-w><A-x> <C-\><C-n><C-w>x
+tnoremap <A-w><A-z> <C-\><C-n><C-w>z
+tnoremap <A-w><A-]> <C-\><C-n><C-w>]
+tnoremap <A-w><A-^> <C-\><C-n><C-w>^
+tnoremap <A-w><A-_> <C-\><C-n><C-w>_
+
+" Shell-style command moves
+cnoremap <C-a> <HOME>
+cnoremap <C-f> <Right>
+cnoremap <C-b> <Left>
+cnoremap <A-b> <S-Left>
+cnoremap <A-f> <S-Right>
+cnoremap <C-n> <DOWN>
+cnoremap <C-p> <UP>
+
+" Faster window switching
+nnoremap <A-j> <C-w>j
+nnoremap <A-k> <C-w>k
+nnoremap <A-l> <C-w>l
+nnoremap <A-h> <C-w>h
+nnoremap <A-q> <C-w>q
+nnoremap <A-s> <C-w>s
+nnoremap <A-v> <C-w>v
+tnoremap <A-j> <C-\><C-n><C-w>j
+tnoremap <A-k> <C-\><C-n><C-w>k
+tnoremap <A-l> <C-\><C-n><C-w>l
+tnoremap <A-q> <C-\><C-n><C-w>q
+tnoremap <A-h> <C-\><C-n><C-w>h
+tnoremap <A-s> <C-\><C-n><C-w>s
+tnoremap <A-v> <C-\><C-n><C-w>v
+
+" Faster tab switching
+nnoremap <A-t> :tabnext<CR>
+nnoremap <A-T> :tabprevious<CR>
+tnoremap <A-t> <C-\><C-n><C-w>:tabnext<CR>
+tnoremap <A-T> <C-\><C-n><C-w>:tabprevious<CR>
+
+" Double tab esc to exit terminal insert mode
+tnoremap <Esc> <C-\><C-n>
+
+" `Q` to edit the default register; `"aQ` to edit register 'a'.
+" TIPS: macros are stored in registers.
+nnoremap Q :<C-u><C-r><C-r>='let @' . v:register .
+			\ ' = ' . string(getreg(v:register))<CR><C-f><LEFT>
+]])
+
 require('nvim-treesitter.configs').setup({
 	textobjects = {
 		select = {
@@ -238,17 +359,6 @@ require('nvim-treesitter.configs').setup({
 				["aa"] = { query = "@parameter.outer", desc = "outer Argument" },
 				["is"] = { query = "@statement.outer", desc = "inner Sentence" },
 				["as"] = { query = "@statement.outer", desc = "outer Sentence" },
-			},
-		},
-		swap = {
-			enable = true,
-			swap_next = {
-				["sa"] = { query = "@parameter.inner", desc = "swap next Argument" },
-				["ss"] = { query = "@statement.outer", desc = "swap next Sentence" },
-			},
-			swap_previous = {
-				["sA"] = { query = "@parameter.inner", desc = "swap next Argument" },
-				["sS"] = { query = "@statement.outer", desc = "swap next Sentence" },
 			},
 		},
 		move = {
