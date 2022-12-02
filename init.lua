@@ -94,6 +94,7 @@ require('packer').startup(function()
 	end}
 	use 'folke/trouble.nvim'
 	use 'folke/which-key.nvim'
+	use 'b0o/mapx.nvim'
 	-- use 'samjwill/nvim-unception'
 	-- use { 'rmagatti/auto-session', config = function()
 	-- 	require('auto-session').setup()
@@ -202,55 +203,48 @@ local grep_string = function()
 	})
 end
 
-local wk = require('which-key')
-wk.register({
-	["<leader>"] = {
-		f = { "<cmd> Telescope find_files<cr>", "Find files" },
-		g = { grep_string, "Grep string" },
-		d = {
-			name = "Diffview",
-			d = { "<cmd> DiffviewOpen<cr>", "Open" },
-			f = { "<cmd> DiffviewFileHistory<cr>", "File history" },
-		},
-		t = {
-			name = "Trouble",
-			t = { "<cmd> TroubleToggle<cr>", "Toggle" },
-			w = { "<cmd> TroubleToggle workspace_diagnostics<cr>", "Workspace diagnostics" },
-			d = { "<cmd> TroubleToggle document_diagnostics<cr>", "Document diagnostics" },
-			l = { "<cmd> TroubleToggle loclist<cr>", "Loclist" },
-			q = { "<cmd> TroubleToggle quickfix<cr>", "Quickfix" },
-		},
-		e = { "<cmd> NvimTreeToggle<cr>", "File explorer" },
-		a = { vim.lsp.buf.code_action, "Lsp code action" },
-		r = { vim.lsp.buf.rename, "Lsp rename" },
-	},
-	["g"] = {
-		r = { "<cmd> Telescope lsp_references<cr>", "Lsp references" },
-		i = { "<cmd> Telescope lsp_implementations<cr>", "Lsp implementations" },
-	},
-	["]"] = {
-		q = { function() require('trouble').next({skip_groups = true, jump = true}); end, "Next trouble item" },
-		Q = { function() require('trouble').last({skip_groups = true, jump = true}); end, "Last trouble item" },
-		r = { function() require('illuminate').goto_next_reference(true); end, "Next reference" },
-	},
-	["["] = {
-		q = { function() require('trouble').previous({skip_groups = true, jump = true}); end, "Previous trouble item" },
-		Q = { function() require('trouble').first({skip_groups = true, jump = true}); end, "First trouble item" },
-		r = { function() require('illuminate').goto_prev_reference(true); end, "Previous reference" },
-	},
-	["s"] = {
-		name = "Swap"
-	},
-	["K"] = { vim.lsp.buf.hover, "Lsp hover" }
-})
+m = require'mapx'.setup{ global = true, whichkey = true }
+nnoremap("<leader>e", ":NvimTreeToggle<cr>", "File explorer")
+nnoremap("<leader>a", vim.lsp.buf.code_action, "LSP: Code action")
+nnoremap("<leader>r", vim.lsp.buf.rename, "LSP: Rename")
+nnoremap("<leader>f", ":Telescope find_files<cr>", "Find files")
+nnoremap("<leader>g", grep_string, "Grep string")
 
-vim.keymap.set("n", "s", "<cmd>lua require('substitute').operator()<cr>", { noremap = true })
-vim.keymap.set("n", "ss", "<cmd>lua require('substitute').line()<cr>", { noremap = true })
-vim.keymap.set("n", "S", "<cmd>lua require('substitute').eol()<cr>", { noremap = true })
-vim.keymap.set("x", "s", "<cmd>lua require('substitute').visual()<cr>", { noremap = true })
-vim.keymap.set("n", "<leader>s", "<cmd>lua require('substitute.range').operator()<cr>", { noremap = true })
-vim.keymap.set("x", "<leader>s", "<cmd>lua require('substitute.range').visual()<cr>", { noremap = true })
-vim.keymap.set("n", "<leader>ss", "<cmd>lua require('substitute.range').word()<cr>", { noremap = true })
+m.nname("<leader>d", "Diffview")
+nnoremap("<leader>dd", ":DiffviewOpen<cr>", "Diffview: Open")
+nnoremap("<leader>df", ":DiffviewFileHistory<cr>", "Diffview: File history")
+
+m.nname("<leader>t", "Trouble")
+nnoremap("<leader>tt", ":TroubleToggle<cr>", "Trouble: Toggle")
+nnoremap("<leader>tw", ":TroubleToggle workspace_diagnostics<cr>", "Trouble: Workspace diagnostics")
+nnoremap("<leader>tw", ":TroubleToggle document_diagnostics<cr>", "Trouble: Document diagnostics")
+nnoremap("<leader>tw", ":TroubleToggle loclist<cr>", "Trouble: Loclist")
+nnoremap("<leader>tw", ":TroubleToggle quickfix<cr>", "Trouble: Quickfix")
+
+nnoremap("gr", ":Telescope lsp_references<cr>", "LSP: References")
+nnoremap("gi", ":Telescope lsp_implementations<cr>", "LSP: Implementations")
+
+local trouble = require('trouble')
+nnoremap("]q", function() trouble.next({skip_groups = true, jump = true}); end, "Trouble: Next item")
+nnoremap("[q", function() trouble.previous({skip_groups = true, jump = true}); end, "Trouble: Previous item")
+nnoremap("]Q", function() trouble.last({skip_groups = true, jump = true}); end, "Trouble: Last item")
+nnoremap("[Q", function() trouble.first({skip_groups = true, jump = true}); end, "Trouble: First item")
+
+local illuminate = require('illuminate')
+nnoremap("]r", function() illuminate.goto_next_reference(true); end, "Illuminate: Next reference")
+nnoremap("[r", function() illuminate.goto_prev_reference(true); end, "Illuminate: Previous reference")
+nnoremap("K", vim.lsp.buf.hover, "LSP: hover")
+
+local substitute = require('substitute')
+nnoremap("s", function() substitute.operator(); end, "Substitute: operator")
+nnoremap("ss", function() substitute.line(); end, "Substitute: line")
+nnoremap("S", function() substitute.eol(); end, "Substitute: eol")
+xnoremap("s", function() substitute.visual(); end, "Substitute: visual")
+
+local substitute_range = require('substitute.range')
+nnoremap("<leader>s", function() substitute_range.range.operator(); end, "Substitute: operator")
+nnoremap("<leader>ss", function() substitute_range.range.word(); end, "Substitute: visual")
+xnoremap("<leader>s", function() substitute_range.range.visual(); end, "Substitute: word")
 
 vim.cmd([[
 autocmd TermEnter term://*toggleterm#*
