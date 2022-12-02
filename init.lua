@@ -1,4 +1,15 @@
-require('impatient')
+local ensure_packer = function()
+	local fn = vim.fn
+	local install_path = fn.stdpath('data')..'/site/pack/packer/start/packer.nvim'
+	if fn.empty(fn.glob(install_path)) > 0 then
+		fn.system({'git', 'clone', '--depth', '1', 'https://github.com/wbthomason/packer.nvim', install_path})
+		vim.cmd [[packadd packer.nvim]]
+		return true
+	end
+	return false
+end
+
+local packer_bootstrap = ensure_packer()
 
 require('packer').startup(function()
 	use 'wbthomason/packer.nvim'
@@ -109,7 +120,13 @@ require('packer').startup(function()
 		require('substitute').setup()
 	end}
 	use 'sindrets/diffview.nvim'
+
+	if packer_bootstrap then
+		require('packer').sync()
+	end
 end)
+
+require('impatient')
 
 vim.opt.number = true
 vim.opt.relativenumber = true
@@ -204,25 +221,25 @@ local grep_string = function()
 end
 
 m = require'mapx'.setup{ global = true, whichkey = true }
-nnoremap("<leader>e", ":NvimTreeToggle<cr>", "File explorer")
+nnoremap("<leader>e", "<cmd>NvimTreeToggle<cr>", "File explorer")
 nnoremap("<leader>a", vim.lsp.buf.code_action, "LSP: Code action")
 nnoremap("<leader>r", vim.lsp.buf.rename, "LSP: Rename")
-nnoremap("<leader>f", ":Telescope find_files<cr>", "Find files")
+nnoremap("<leader>f", "<cmd>Telescope find_files<cr>", "Find files")
 nnoremap("<leader>g", grep_string, "Grep string")
 
 m.nname("<leader>d", "Diffview")
-nnoremap("<leader>dd", ":DiffviewOpen<cr>", "Diffview: Open")
-nnoremap("<leader>df", ":DiffviewFileHistory<cr>", "Diffview: File history")
+nnoremap("<leader>dd", "<cmd>DiffviewOpen<cr>", "Diffview: Open")
+nnoremap("<leader>df", "<cmd>DiffviewFileHistory<cr>", "Diffview: File history")
 
 m.nname("<leader>t", "Trouble")
-nnoremap("<leader>tt", ":TroubleToggle<cr>", "Trouble: Toggle")
-nnoremap("<leader>tw", ":TroubleToggle workspace_diagnostics<cr>", "Trouble: Workspace diagnostics")
-nnoremap("<leader>tw", ":TroubleToggle document_diagnostics<cr>", "Trouble: Document diagnostics")
-nnoremap("<leader>tw", ":TroubleToggle loclist<cr>", "Trouble: Loclist")
-nnoremap("<leader>tw", ":TroubleToggle quickfix<cr>", "Trouble: Quickfix")
+nnoremap("<leader>tt", "<cmd>TroubleToggle<cr>", "Trouble: Toggle")
+nnoremap("<leader>tw", "<cmd>TroubleToggle workspace_diagnostics<cr>", "Trouble: Workspace diagnostics")
+nnoremap("<leader>tw", "<cmd>TroubleToggle document_diagnostics<cr>", "Trouble: Document diagnostics")
+nnoremap("<leader>tw", "<cmd>TroubleToggle loclist<cr>", "Trouble: Loclist")
+nnoremap("<leader>tw", "<cmd>TroubleToggle quickfix<cr>", "Trouble: Quickfix")
 
-nnoremap("gr", ":Telescope lsp_references<cr>", "LSP: References")
-nnoremap("gi", ":Telescope lsp_implementations<cr>", "LSP: Implementations")
+nnoremap("gr", "<cmd>Telescope lsp_references<cr>", "LSP: References")
+nnoremap("gi", "<cmd>Telescope lsp_implementations<cr>", "LSP: Implementations")
 
 local trouble = require('trouble')
 nnoremap("]q", function() trouble.next({skip_groups = true, jump = true}); end, "Trouble: Next item")
@@ -231,8 +248,8 @@ nnoremap("]Q", function() trouble.last({skip_groups = true, jump = true}); end, 
 nnoremap("[Q", function() trouble.first({skip_groups = true, jump = true}); end, "Trouble: First item")
 
 local illuminate = require('illuminate')
-nnoremap("]r", function() illuminate.goto_next_reference(true); end, "Illuminate: Next reference")
-nnoremap("[r", function() illuminate.goto_prev_reference(true); end, "Illuminate: Previous reference")
+nnoremap("]r", function() illuminate.goto_next_reference(true); end, "Next reference")
+nnoremap("[r", function() illuminate.goto_prev_reference(true); end, "Previous reference")
 nnoremap("K", vim.lsp.buf.hover, "LSP: hover")
 
 local substitute = require('substitute')
@@ -246,40 +263,40 @@ nnoremap("<leader>s", function() substitute_range.range.operator(); end, "Substi
 nnoremap("<leader>ss", function() substitute_range.range.word(); end, "Substitute: visual")
 xnoremap("<leader>s", function() substitute_range.range.visual(); end, "Substitute: word")
 
+tnoremap("<C-t>", [[<cmd>exe v:count1 . "ToggleTerm"<cr>]], "silent", "Toggle term")
+nnoremap("<C-t>", [[<cmd>exe v:count1 . "ToggleTerm"<cr>]], "silent", "Toggle term")
+inoremap("<C-t>", [[<esc><cmd>exe v:count1 . "ToggleTerm"<cr>]], "silent", "Toggle term")
+
+-- Shell-style command moves
+cnoremap("<C-a>", "<HOME>")
+cnoremap("<C-f>", "<Right>")
+cnoremap("<C-b>", "<Left>")
+cnoremap("<M-b>", "<S-Left>")
+cnoremap("<M-f>", "<S-Right>")
+cnoremap("<C-n>", "<DOWN>")
+cnoremap("<C-p>", "<UP>")
+
+m.nname("<M-w>", "window")
+nnoremap("<M-w>+", "<C-w>+", "Increase height")
+nnoremap("<M-w>-", "<C-w>-", "Decrease height")
+nnoremap("<M-w>=", "<C-w>=", "Equally high and wide")
+nnoremap("<M-w>>", "<C-w>>", "Increase width")
+nnoremap("<M-w>_", "<C-w>_", "Max out the height")
+nnoremap("<M-w>|", "<C-w>|", "Max out the width")
+nnoremap("<M-w><", "<C-w><", "Decrease width")
+nnoremap("<M-w>h", "<C-w>h", "Go to the left window")
+nnoremap("<M-w>j", "<C-w>j", "Go to the down window")
+nnoremap("<M-w>k", "<C-w>k", "Go to the up window")
+nnoremap("<M-w>l", "<C-w>l", "Go to the right window")
+nnoremap("<M-w>q", "<C-w>q", "Quit a window")
+nnoremap("<M-w>s", "<C-w>s", "Split window")
+nnoremap("<M-w>T", "<C-w>T", "Break out into a new tab")
+nnoremap("<M-w>v", "<C-w>v", "Split window vertically")
+nnoremap("<M-w>w", "<C-w>w", "Switch windows")
+nnoremap("<M-w>x", "<C-w>x", "Swap current with next")
+
+
 vim.cmd([[
-autocmd TermEnter term://*toggleterm#*
-      \ tnoremap <silent><c-t> <Cmd>exe v:count1 . "ToggleTerm"<CR>
-nnoremap <silent><c-t> <Cmd>exe v:count1 . "ToggleTerm"<CR>
-inoremap <silent><c-t> <Esc><Cmd>exe v:count1 . "ToggleTerm"<CR>
-
-" `Alt-w` is the universal window swiching key for both regular buffers and
-" terminal buffers.
-nnoremap <A-w> <C-w>
-nnoremap <A-w><A-b> <C-w>b
-nnoremap <A-w><A-c> <C-w>c
-nnoremap <A-w><A-d> <C-w>d
-nnoremap <A-w><A-f> <C-w>f
-nmap <A-w><A-g> <C-w>g
-nnoremap <A-w><A-h> <C-w>h
-nnoremap <A-w><A-i> <C-w>i
-nnoremap <A-w><A-j> <C-w>j
-nnoremap <A-w><A-k> <C-w>k
-nnoremap <A-w><A-l> <C-w>l
-nnoremap <A-w><A-n> <C-w>n
-nnoremap <A-w><A-o> <C-w>o
-nnoremap <A-w><A-p> <C-w>p
-nnoremap <A-w><A-q> <C-w>q
-nnoremap <A-w><A-r> <C-w>r
-nnoremap <A-w><A-s> <C-w>s
-nnoremap <A-w><A-t> <C-w>t
-nnoremap <A-w><A-v> <C-w>v
-nnoremap <A-w><A-w> <C-w>w
-nnoremap <A-w><A-x> <C-w>x
-nnoremap <A-w><A-z> <C-w>z
-nnoremap <A-w><A-]> <C-w>]
-nnoremap <A-w><A-^> <C-w>^
-nnoremap <A-w><A-_> <C-w>_
-
 tnoremap <A-w> <C-\><C-n><C-w>
 tnoremap <A-w><A-b> <C-\><C-n><C-w>b
 tnoremap <A-w><A-c> <C-\><C-n><C-w>c
@@ -305,15 +322,6 @@ tnoremap <A-w><A-z> <C-\><C-n><C-w>z
 tnoremap <A-w><A-]> <C-\><C-n><C-w>]
 tnoremap <A-w><A-^> <C-\><C-n><C-w>^
 tnoremap <A-w><A-_> <C-\><C-n><C-w>_
-
-" Shell-style command moves
-cnoremap <C-a> <HOME>
-cnoremap <C-f> <Right>
-cnoremap <C-b> <Left>
-cnoremap <A-b> <S-Left>
-cnoremap <A-f> <S-Right>
-cnoremap <C-n> <DOWN>
-cnoremap <C-p> <UP>
 
 " Faster window switching
 nnoremap <A-j> <C-w>j
