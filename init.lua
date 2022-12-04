@@ -30,7 +30,52 @@ require('packer').startup(function()
 		})
 	end}
 
-	use 'hrsh7th/nvim-cmp'
+	use { 'hrsh7th/nvim-cmp', config = function()
+		local cmp = require'cmp'
+		cmp.setup({
+			-- Enable LSP snippets
+			snippet = {
+				expand = function(args)
+					vim.fn["vsnip#anonymous"](args.body)
+				end,
+			},
+			mapping = {
+				['<C-p>'] = cmp.mapping.select_prev_item(),
+				['<C-n>'] = cmp.mapping.select_next_item(),
+				['<C-b>'] = cmp.mapping.scroll_docs(-4),
+				['<C-f>'] = cmp.mapping.scroll_docs(4),
+				['<C-Space>'] = cmp.mapping.complete(),
+				['<C-e>'] = cmp.mapping.close()
+			},
+			-- Installed sources:
+			sources = {
+				{ name = 'path' },                              -- file paths
+				{ name = 'nvim_lsp', keyword_length = 3 },      -- from language server
+				{ name = 'nvim_lsp_signature_help'},            -- display function signatures with current parameter emphasized
+				{ name = 'nvim_lua', keyword_length = 2},       -- complete neovim's Lua runtime API such vim.lsp.*
+				{ name = 'buffer', keyword_length = 2 },        -- source current buffer
+				{ name = 'vsnip', keyword_length = 2 },         -- nvim-cmp source for vim-vsnip
+				{ name = 'calc'},                               -- source for math calculation
+			},
+			window = {
+				completion = cmp.config.window.bordered(),
+				documentation = cmp.config.window.bordered(),
+			},
+			formatting = {
+				fields = {'menu', 'abbr', 'kind'},
+				format = function(entry, item)
+					local menu_icon ={
+						nvim_lsp = 'λ',
+						vsnip = '⋗',
+						buffer = 'Ω',
+						path = '🖫',
+					}
+					item.menu = menu_icon[entry.source.name]
+					return item
+				end,
+			},
+		})
+	end}
 	use 'hrsh7th/cmp-nvim-lsp'
 	use 'hrsh7th/cmp-nvim-lua'
 	use 'hrsh7th/cmp-nvim-lsp-signature-help'
@@ -39,13 +84,105 @@ require('packer').startup(function()
 	use 'hrsh7th/cmp-buffer'
 	use 'hrsh7th/vim-vsnip'
 
-	use 'nvim-treesitter/nvim-treesitter'
-	use 'nvim-treesitter/nvim-treesitter-textobjects'
+	use {
+		'nvim-treesitter/nvim-treesitter',
+		config = function()
+			require('nvim-treesitter.configs').setup {
+				auto_install = true,
+				highlight = {
+					enable = true,
+					additional_vim_regex_highlighting=false,
+				},
+				ident = { enable = true },
+				rainbow = {
+					enable = true,
+					extended_mode = true,
+					max_file_lines = nil,
+				}
+			}
+		end
+	}
+	use {
+		'nvim-treesitter/nvim-treesitter-textobjects',
+		config = function()
+			require('nvim-treesitter.configs').setup({
+				textobjects = {
+					select = {
+						enable = true,
+						lookahead = true,
+						keymaps = {
+							["iB"] = { query = "@block.inner", desc = "inner Block" },
+							["aB"] = { query = "@block.outer", desc = "outer Block" },
+							["ib"] = { query = "@call.inner", desc = "inner block" },
+							["ab"] = { query = "@call.outer", desc = "outer block" },
+							["ic"] = { query = "@conditional.inner", desc = "inner Conditional" },
+							["ac"] = { query = "@conditional.outer", desc = "outer Conditional" },
+							["im"] = { query = "@function.inner", desc = "inner Method" },
+							["am"] = { query = "@function.outer", desc = "outer Method" },
+							["il"] = { query = "@loop.inner", desc = "inner Loop" },
+							["al"] = { query = "@loop.outer", desc = "outer Loop" },
+							["ia"] = { query = "@parameter.inner", desc = "inner Argument" },
+							["aa"] = { query = "@parameter.outer", desc = "outer Argument" },
+							["is"] = { query = "@statement.outer", desc = "inner Sentence" },
+							["as"] = { query = "@statement.outer", desc = "outer Sentence" },
+						},
+					},
+					move = {
+						enable = true,
+						set_jumps = true,
+						goto_next_start = {
+							["]m"] = { query = "@function.outer", desc = "Next method start" },
+							["]]"] = { query = "@class.outer", desc = "Next class start" },
+						},
+						goto_next_end = {
+							["]M"] = { query = "@function.outer", desc = "Next method end" },
+							["]["] = { query = "@class.outer", desc = "Next class end" },
+						},
+						goto_previous_start = {
+							["[m"] = { query = "@function.outer", desc = "Previous method start" },
+							["[["] = { query = "@class.outer", desc = "Previous class start" },
+						},
+						goto_previous_end = {
+							["[M"] = { query = "@function.outer", desc = "Previous method end" },
+							["[]"] = { query = "@class.outer", desc = "Previous class end" },
+						}
+					},
+				},
+			})
+		end
+	}
+	use 'nvim-treesitter/nvim-treesitter-context'
 
 	use 'mfussenegger/nvim-dap'
 
 	use {
 		'nvim-telescope/telescope.nvim',
+		config = function()
+			require('telescope').setup({
+				pickers = {
+					buffers = {
+						mappings = {
+							i = {
+								["<C-k>"] = "delete_buffer"
+							},
+							n = {
+								["<C-k>"] = "delete_buffer"
+							},
+						},
+					},
+				},
+				extensions = {
+					fzf = {
+						fuzzy = true,
+						override_generic_sorter = true,
+						override_file_sorter = true,
+					}
+				}
+			})
+			require('telescope').load_extension('fzf')
+			require('telescope').load_extension('neoclip')
+			require('telescope').load_extension('macroscope')
+		end,
 		requires = { {'nvim-lua/plenary.nvim'} }
 	}
 	use {'nvim-telescope/telescope-fzf-native.nvim', run = 'make' }
@@ -120,6 +257,41 @@ require('packer').startup(function()
 		require('substitute').setup()
 	end}
 	use 'sindrets/diffview.nvim'
+	use { 'chentoast/marks.nvim', config = function()
+		require'marks'.setup {
+			force_write_shada = true
+		}
+	end}
+	use {
+		'AckslD/nvim-neoclip.lua',
+		requires = {
+			{'kkharji/sqlite.lua', module = 'sqlite'},
+		},
+		config = function()
+			require('neoclip').setup ({
+				enable_persistent_history = true,
+				continuous_sync = true,
+				keys = {
+					telescope = {
+						i = {
+							select = '<cr>',
+							paste = false,
+							paste_behind = false,
+							replay = false,
+							delete = '<C-k>',
+						},
+						n = {
+							select = '<cr>',
+							paste = false,
+							paste_behind = false,
+							replay = false,
+							delete = '<C-k>',
+						},
+					},
+				},
+			})
+		end
+	}
 
 	if packer_bootstrap then
 		require('packer').sync()
@@ -195,225 +367,7 @@ vim.api.nvim_create_autocmd({ "BufWinEnter" }, {
 	end,
 })
 
-local grep_string = function()
-	local cword = vim.fn.expand("<cword>")
-	require("telescope.builtin").grep_string({
-		search = "",
-		default_text = "'" .. cword,
-		on_complete = cword ~= "" and {
-			function(picker)
-				local mode = vim.fn.mode()
-				local keys = mode ~= "n" and "<ESC>" or ""
-				vim.api.nvim_feedkeys(
-				vim.api.nvim_replace_termcodes(keys .. [[$v^ll<C-g>]], true, false, true),
-				"n",
-				true
-				)
-				-- should you have more callbacks, just pop the first one
-				table.remove(picker._completion_callbacks, 1)
-				-- copy mappings s.t. eg <C-n>, <C-p> works etc
-				vim.tbl_map(function(mapping)
-					vim.api.nvim_buf_set_keymap(0, "s", mapping.lhs, mapping.rhs, {})
-				end, vim.api.nvim_buf_get_keymap(0, "i"))
-			end,
-		} or nil,
-	})
-end
-
-m = require'mapx'.setup{ global = true, whichkey = true }
-nnoremap("<leader>e", "<cmd>NvimTreeToggle<cr>", "File explorer")
-nnoremap("<leader>a", vim.lsp.buf.code_action, "LSP: Code action")
-nnoremap("<leader>r", vim.lsp.buf.rename, "LSP: Rename")
-nnoremap("<leader>f", "<cmd>Telescope find_files<cr>", "Find files")
-nnoremap("<leader>g", grep_string, "Grep string")
-
-m.nname("<leader>d", "Diffview")
-nnoremap("<leader>dd", "<cmd>DiffviewOpen<cr>", "Diffview: Open")
-nnoremap("<leader>df", "<cmd>DiffviewFileHistory<cr>", "Diffview: File history")
-
-m.nname("<leader>t", "Trouble")
-nnoremap("<leader>tt", "<cmd>TroubleToggle<cr>", "Trouble: Toggle")
-nnoremap("<leader>tw", "<cmd>TroubleToggle workspace_diagnostics<cr>", "Trouble: Workspace diagnostics")
-nnoremap("<leader>tw", "<cmd>TroubleToggle document_diagnostics<cr>", "Trouble: Document diagnostics")
-nnoremap("<leader>tw", "<cmd>TroubleToggle loclist<cr>", "Trouble: Loclist")
-nnoremap("<leader>tw", "<cmd>TroubleToggle quickfix<cr>", "Trouble: Quickfix")
-
-nnoremap("gr", "<cmd>Telescope lsp_references<cr>", "LSP: References")
-nnoremap("gi", "<cmd>Telescope lsp_implementations<cr>", "LSP: Implementations")
-
-local trouble = require('trouble')
-nnoremap("]q", function() trouble.next({skip_groups = true, jump = true}); end, "Trouble: Next item")
-nnoremap("[q", function() trouble.previous({skip_groups = true, jump = true}); end, "Trouble: Previous item")
-nnoremap("]Q", function() trouble.last({skip_groups = true, jump = true}); end, "Trouble: Last item")
-nnoremap("[Q", function() trouble.first({skip_groups = true, jump = true}); end, "Trouble: First item")
-
-local illuminate = require('illuminate')
-nnoremap("]r", function() illuminate.goto_next_reference(true); end, "Next reference")
-nnoremap("[r", function() illuminate.goto_prev_reference(true); end, "Previous reference")
-nnoremap("K", vim.lsp.buf.hover, "LSP: hover")
-
-local substitute = require('substitute')
-nnoremap("s", function() substitute.operator(); end, "Substitute: operator")
-nnoremap("ss", function() substitute.line(); end, "Substitute: line")
-nnoremap("S", function() substitute.eol(); end, "Substitute: eol")
-xnoremap("s", function() substitute.visual(); end, "Substitute: visual")
-
-local substitute_range = require('substitute.range')
-nnoremap("<leader>s", function() substitute_range.range.operator(); end, "Substitute: operator")
-nnoremap("<leader>ss", function() substitute_range.range.word(); end, "Substitute: visual")
-xnoremap("<leader>s", function() substitute_range.range.visual(); end, "Substitute: word")
-
-tnoremap("<C-t>", [[<cmd>exe v:count1 . "ToggleTerm"<cr>]], "silent", "Toggle term")
-nnoremap("<C-t>", [[<cmd>exe v:count1 . "ToggleTerm"<cr>]], "silent", "Toggle term")
-inoremap("<C-t>", [[<esc><cmd>exe v:count1 . "ToggleTerm"<cr>]], "silent", "Toggle term")
-
--- Shell-style command moves
-cnoremap("<C-a>", "<HOME>")
-cnoremap("<C-f>", "<Right>")
-cnoremap("<C-b>", "<Left>")
-cnoremap("<M-b>", "<S-Left>")
-cnoremap("<M-f>", "<S-Right>")
-cnoremap("<C-n>", "<DOWN>")
-cnoremap("<C-p>", "<UP>")
-
-m.nname("<M-w>", "window")
-nnoremap("<M-w>+", "<C-w>+", "Increase height")
-nnoremap("<M-w>-", "<C-w>-", "Decrease height")
-nnoremap("<M-w>=", "<C-w>=", "Equally high and wide")
-nnoremap("<M-w>>", "<C-w>>", "Increase width")
-nnoremap("<M-w>_", "<C-w>_", "Max out the height")
-nnoremap("<M-w>|", "<C-w>|", "Max out the width")
-nnoremap("<M-w><", "<C-w><", "Decrease width")
-nnoremap("<M-w>h", "<C-w>h", "Go to the left window")
-nnoremap("<M-w>j", "<C-w>j", "Go to the down window")
-nnoremap("<M-w>k", "<C-w>k", "Go to the up window")
-nnoremap("<M-w>l", "<C-w>l", "Go to the right window")
-nnoremap("<M-w>q", "<C-w>q", "Quit a window")
-nnoremap("<M-w>s", "<C-w>s", "Split window")
-nnoremap("<M-w>T", "<C-w>T", "Break out into a new tab")
-nnoremap("<M-w>v", "<C-w>v", "Split window vertically")
-nnoremap("<M-w>w", "<C-w>w", "Switch windows")
-nnoremap("<M-w>x", "<C-w>x", "Swap current with next")
-
-
-vim.cmd([[
-tnoremap <A-w> <C-\><C-n><C-w>
-tnoremap <A-w><A-b> <C-\><C-n><C-w>b
-tnoremap <A-w><A-c> <C-\><C-n><C-w>c
-tnoremap <A-w><A-d> <C-\><C-n><C-w>d
-tnoremap <A-w><A-f> <C-\><C-n><C-w>f
-tmap <A-w><A-g> <C-\><C-n><C-w>g
-tnoremap <A-w><A-h> <C-\><C-n><C-w>h
-tnoremap <A-w><A-i> <C-\><C-n><C-w>i
-tnoremap <A-w><A-j> <C-\><C-n><C-w>j
-tnoremap <A-w><A-k> <C-\><C-n><C-w>k
-tnoremap <A-w><A-l> <C-\><C-n><C-w>l
-tnoremap <A-w><A-n> <C-\><C-n><C-w>n
-tnoremap <A-w><A-o> <C-\><C-n><C-w>o
-tnoremap <A-w><A-p> <C-\><C-n><C-w>p
-tnoremap <A-w><A-q> <C-\><C-n><C-w>q
-tnoremap <A-w><A-r> <C-\><C-n><C-w>r
-tnoremap <A-w><A-s> <C-\><C-n><C-w>s
-tnoremap <A-w><A-t> <C-\><C-n><C-w>t
-tnoremap <A-w><A-v> <C-\><C-n><C-w>v
-tnoremap <A-w><A-w> <C-\><C-n><C-w>w
-tnoremap <A-w><A-x> <C-\><C-n><C-w>x
-tnoremap <A-w><A-z> <C-\><C-n><C-w>z
-tnoremap <A-w><A-]> <C-\><C-n><C-w>]
-tnoremap <A-w><A-^> <C-\><C-n><C-w>^
-tnoremap <A-w><A-_> <C-\><C-n><C-w>_
-
-" Faster window switching
-nnoremap <A-j> <C-w>j
-nnoremap <A-k> <C-w>k
-nnoremap <A-l> <C-w>l
-nnoremap <A-h> <C-w>h
-nnoremap <A-q> <C-w>q
-nnoremap <A-s> <C-w>s
-nnoremap <A-v> <C-w>v
-tnoremap <A-j> <C-\><C-n><C-w>j
-tnoremap <A-k> <C-\><C-n><C-w>k
-tnoremap <A-l> <C-\><C-n><C-w>l
-tnoremap <A-q> <C-\><C-n><C-w>q
-tnoremap <A-h> <C-\><C-n><C-w>h
-tnoremap <A-s> <C-\><C-n><C-w>s
-tnoremap <A-v> <C-\><C-n><C-w>v
-
-" Faster tab switching
-nnoremap <A-t> :tabnext<CR>
-nnoremap <A-T> :tabprevious<CR>
-tnoremap <A-t> <C-\><C-n><C-w>:tabnext<CR>
-tnoremap <A-T> <C-\><C-n><C-w>:tabprevious<CR>
-
-" Esc to exit terminal insert mode
-tnoremap <Esc> <C-\><C-n>
-
-" `Q` to edit the default register; `"aQ` to edit register 'a'.
-" TIPS: macros are stored in registers.
-nnoremap Q :<C-u><C-r><C-r>='let @' . v:register .
-			\ ' = ' . string(getreg(v:register))<CR><C-f><LEFT>
-]])
-
-require('nvim-treesitter.configs').setup({
-	textobjects = {
-		select = {
-			enable = true,
-			lookahead = true,
-			keymaps = {
-				["iB"] = { query = "@block.inner", desc = "inner Block" },
-				["aB"] = { query = "@block.outer", desc = "outer Block" },
-				["ib"] = { query = "@call.inner", desc = "inner block" },
-				["ab"] = { query = "@call.outer", desc = "outer block" },
-				["ic"] = { query = "@conditional.inner", desc = "inner Conditional" },
-				["ac"] = { query = "@conditional.outer", desc = "outer Conditional" },
-				["im"] = { query = "@function.inner", desc = "inner Method" },
-				["am"] = { query = "@function.outer", desc = "outer Method" },
-				["il"] = { query = "@loop.inner", desc = "inner Loop" },
-				["al"] = { query = "@loop.outer", desc = "outer Loop" },
-				["ia"] = { query = "@parameter.inner", desc = "inner Argument" },
-				["aa"] = { query = "@parameter.outer", desc = "outer Argument" },
-				["is"] = { query = "@statement.outer", desc = "inner Sentence" },
-				["as"] = { query = "@statement.outer", desc = "outer Sentence" },
-			},
-		},
-		move = {
-			enable = true,
-			set_jumps = true,
-			goto_next_start = {
-				["]m"] = { query = "@function.outer", desc = "Next method start" },
-				["]]"] = { query = "@class.outer", desc = "Next class start" },
-			},
-			goto_next_end = {
-				["]M"] = { query = "@function.outer", desc = "Next method end" },
-				["]["] = { query = "@class.outer", desc = "Next class end" },
-			},
-			goto_previous_start = {
-				["[m"] = { query = "@function.outer", desc = "Previous method start" },
-				["[["] = { query = "@class.outer", desc = "Previous class start" },
-			},
-			goto_previous_end = {
-				["[M"] = { query = "@function.outer", desc = "Previous method end" },
-				["[]"] = { query = "@class.outer", desc = "Previous class end" },
-			}
-		},
-	},
-})
-
-require('telescope').setup({
-	defaults = {
-		mappings = {
-		},
-	},
-	extensions = {
-		fzf = {
-			fuzzy = true,
-			override_generic_sorter = true,
-			override_file_sorter = true,
-		}
-	}
-})
-require('telescope').load_extension('fzf')
-
+-- Diagnostic
 local sign = function(opts)
 	vim.fn.sign_define(opts.name, {
 		texthl = opts.name,
@@ -446,70 +400,114 @@ set signcolumn=yes
 autocmd CursorHold * lua vim.diagnostic.open_float(nil, { focusable = false })
 ]])
 
-local cmp = require'cmp'
-cmp.setup({
-	-- Enable LSP snippets
-	snippet = {
-		expand = function(args)
-			vim.fn["vsnip#anonymous"](args.body)
-		end,
-	},
-	mapping = {
-		['<C-p>'] = cmp.mapping.select_prev_item(),
-		['<C-n>'] = cmp.mapping.select_next_item(),
-		-- Add tab support
-		['<S-Tab>'] = cmp.mapping.select_prev_item(),
-		['<Tab>'] = cmp.mapping.select_next_item(),
-		['<C-S-f>'] = cmp.mapping.scroll_docs(-4),
-		['<C-f>'] = cmp.mapping.scroll_docs(4),
-		['<C-Space>'] = cmp.mapping.complete(),
-		['<C-e>'] = cmp.mapping.close(),
-		['<CR>'] = cmp.mapping.confirm({
-			behavior = cmp.ConfirmBehavior.Insert,
-			select = true,
-		})
-	},
-	-- Installed sources:
-	sources = {
-		{ name = 'path' },                              -- file paths
-		{ name = 'nvim_lsp', keyword_length = 3 },      -- from language server
-		{ name = 'nvim_lsp_signature_help'},            -- display function signatures with current parameter emphasized
-		{ name = 'nvim_lua', keyword_length = 2},       -- complete neovim's Lua runtime API such vim.lsp.*
-		{ name = 'buffer', keyword_length = 2 },        -- source current buffer
-		{ name = 'vsnip', keyword_length = 2 },         -- nvim-cmp source for vim-vsnip
-		{ name = 'calc'},                               -- source for math calculation
-	},
-	window = {
-		completion = cmp.config.window.bordered(),
-		documentation = cmp.config.window.bordered(),
-	},
-	formatting = {
-		fields = {'menu', 'abbr', 'kind'},
-		format = function(entry, item)
-			local menu_icon ={
-				nvim_lsp = 'λ',
-				vsnip = '⋗',
-				buffer = 'Ω',
-				path = '🖫',
-			}
-			item.menu = menu_icon[entry.source.name]
-			return item
-		end,
-	},
-})
 
-require('nvim-treesitter.configs').setup {
-	ensure_installed = { "vim", "lua", "rust", "toml" },
-	auto_install = true,
-	highlight = {
-		enable = true,
-		additional_vim_regex_highlighting=false,
-	},
-	ident = { enable = true },
-	rainbow = {
-		enable = true,
-		extended_mode = true,
-		max_file_lines = nil,
-	}
-}
+-- Keymapping
+local grep_string = function()
+	local cword = vim.fn.expand("<cword>")
+	require("telescope.builtin").grep_string({
+		search = "",
+		default_text = "'" .. cword,
+		on_complete = cword ~= "" and {
+			function(picker)
+				local mode = vim.fn.mode()
+				local keys = mode ~= "n" and "<ESC>" or ""
+				vim.api.nvim_feedkeys(
+				vim.api.nvim_replace_termcodes(keys .. [[$v^ll<C-g>]], true, false, true),
+				"n",
+				true
+				)
+				-- should you have more callbacks, just pop the first one
+				table.remove(picker._completion_callbacks, 1)
+				-- copy mappings s.t. eg <C-n>, <C-p> works etc
+				vim.tbl_map(function(mapping)
+					vim.api.nvim_buf_set_keymap(0, "s", mapping.lhs, mapping.rhs, {})
+				end, vim.api.nvim_buf_get_keymap(0, "i"))
+			end,
+		} or nil,
+	})
+end
+
+m = require'mapx'.setup{ global = true, whichkey = true }
+telescope_builtin = require('telescope.builtin')
+nnoremap("-", "<cmd>NvimTreeFindFile<cr>", "File explorer")
+nnoremap("<leader>e", "<cmd>NvimTreeToggle<cr>", "File explorer toggle")
+nnoremap("<leader>a", vim.lsp.buf.code_action, "LSP: Code action")
+nnoremap("<leader>r", vim.lsp.buf.rename, "LSP: Rename")
+nnoremap("<leader>f", telescope_builtin.find_files, "Find files")
+nnoremap("<leader>g", grep_string, "Grep string")
+nnoremap("<leader>b", function() telescope_builtin.buffers({sort_lastused = true}) end, "Buffers")
+nnoremap("<leader>m", telescope_builtin.marks, "Marks")
+
+m.nname("<leader>d", "Diffview")
+nnoremap("<leader>dd", "<cmd>DiffviewOpen<cr>", "Diffview: Open")
+nnoremap("<leader>df", "<cmd>DiffviewFileHistory<cr>", "Diffview: File history")
+
+m.nname("<leader>t", "Trouble")
+nnoremap("<leader>tt", "<cmd>TroubleToggle<cr>", "Trouble: Toggle")
+nnoremap("<leader>tw", "<cmd>TroubleToggle workspace_diagnostics<cr>", "Trouble: Workspace diagnostics")
+nnoremap("<leader>tw", "<cmd>TroubleToggle document_diagnostics<cr>", "Trouble: Document diagnostics")
+nnoremap("<leader>tw", "<cmd>TroubleToggle loclist<cr>", "Trouble: Loclist")
+nnoremap("<leader>tw", "<cmd>TroubleToggle quickfix<cr>", "Trouble: Quickfix")
+
+nnoremap("gr", "<cmd>Telescope lsp_references<cr>", "LSP: References")
+nnoremap("gi", "<cmd>Telescope lsp_implementations<cr>", "LSP: Implementations")
+
+local trouble = require('trouble')
+nnoremap("]q", function() trouble.next({skip_groups = true, jump = true}); end, "Trouble: Next item")
+nnoremap("[q", function() trouble.previous({skip_groups = true, jump = true}); end, "Trouble: Previous item")
+nnoremap("]Q", function() trouble.last({skip_groups = true, jump = true}); end, "Trouble: Last item")
+nnoremap("[Q", function() trouble.first({skip_groups = true, jump = true}); end, "Trouble: First item")
+
+local illuminate = require('illuminate')
+nnoremap("]r", function() illuminate.goto_next_reference(true); end, "Next reference")
+nnoremap("[r", function() illuminate.goto_prev_reference(true); end, "Previous reference")
+nnoremap("K", vim.lsp.buf.hover, "LSP: hover")
+
+local substitute = require('substitute')
+nnoremap("s", function() substitute.operator(); end, "Substitute: operator")
+nnoremap("ss", function() substitute.line(); end, "Substitute: line")
+xnoremap("s", function() substitute.visual(); end, "Substitute: visual")
+
+local substitute_range = require('substitute.range')
+nnoremap("<leader>s", function() substitute_range.operator(); end, "Substitute: range operator")
+nnoremap("<leader>ss", function() substitute_range.word(); end, "Substitute: range word")
+xnoremap("<leader>s", function() substitute_range.visual(); end, "Substitute: range visual")
+
+local substitute_exchange = require('substitute.exchange')
+nnoremap("sx", function() substitute_exchange.operator(); end, "Substitute: exchange operator")
+nnoremap("sxx", function() substitute_exchange.line(); end, "Substitute: exchange line")
+xnoremap("sx", function() substitute_exchange.visual(); end, "Substitute: exchange visual")
+
+tnoremap("<C-t>", [[<cmd>exe v:count1 . "ToggleTerm"<cr>]], "silent", "Toggle term")
+nnoremap("<C-t>", [[<cmd>exe v:count1 . "ToggleTerm"<cr>]], "silent", "Toggle term")
+inoremap("<C-t>", [[<esc><cmd>exe v:count1 . "ToggleTerm"<cr>]], "silent", "Toggle term")
+
+-- Shell-style command moves
+cnoremap("<C-a>", "<Home>")
+cnoremap("<C-f>", "<Right>")
+cnoremap("<C-b>", "<Left>")
+cnoremap("<M-b>", "<S-Left>")
+cnoremap("<M-f>", "<S-Right>")
+cnoremap("<C-n>", "<Down>")
+cnoremap("<C-p>", "<Up>")
+
+nmap("<M-w>", "<C-w>")
+tmap("<M-w>", "<C-\\><C-n><C-w>")
+
+-- Faster window switching
+nnoremap("<M-h>", "<cmd>wincmd h<cr>", "Go to the left window")
+nnoremap("<M-j>", "<cmd>wincmd j<cr>", "Go to the down window")
+nnoremap("<M-k>", "<cmd>wincmd k<cr>", "Go to the up window")
+nnoremap("<M-l>", "<cmd>wincmd l<cr>", "Go to the right window")
+nnoremap("<M-q>", "<cmd>wincmd q<cr>", "Quit a window")
+nnoremap("<M-s>", "<cmd>wincmd s<cr>", "Split window")
+nnoremap("<M-v>", "<cmd>wincmd v<cr>", "Split window vertically")
+tnoremap("<M-h>", "<cmd>wincmd h<cr>", "Go to the left window")
+tnoremap("<M-j>", "<cmd>wincmd j<cr>", "Go to the down window")
+tnoremap("<M-k>", "<cmd>wincmd k<cr>", "Go to the up window")
+tnoremap("<M-l>", "<cmd>wincmd l<cr>", "Go to the right window")
+tnoremap("<M-q>", "<cmd>wincmd q<cr>", "Quit a window")
+tnoremap("<M-s>", "<cmd>wincmd s<cr>", "Split window")
+tnoremap("<M-v>", "<cmd>wincmd v<cr>", "Split window vertically")
+tnoremap("<Esc>", "<C-\\><C-n>", "Exit insert mode")
 
