@@ -21,11 +21,17 @@ require('packer').startup(function()
 
 	use 'neovim/nvim-lspconfig'
 	use { 'simrat39/rust-tools.nvim', config = function()
+		local extension_path = vim.env.HOME .. '/.vscode/extensions/vadimcn.vscode-lldb-1.8.1/'
+		local codelldb_path = extension_path .. 'adapter/codelldb'
+		local liblldb_path = extension_path .. 'lldb/lib/liblldb.so'
+
 		local rt = require("rust-tools")
 		rt.setup({
 			server = {
 			},
 			dap = {
+				adapter = require('rust-tools.dap').get_codelldb_adapter(
+					codelldb_path, liblldb_path)
 			}
 		})
 	end}
@@ -154,6 +160,13 @@ require('packer').startup(function()
 	use 'nvim-treesitter/nvim-treesitter-context'
 
 	use 'mfussenegger/nvim-dap'
+	use {
+		"rcarriga/nvim-dap-ui",
+		config = function()
+			require("dapui").setup()
+		end,
+		requires = {"mfussenegger/nvim-dap"}
+	}
 
 	use {
 		'nvim-telescope/telescope.nvim',
@@ -224,17 +237,22 @@ require('packer').startup(function()
 				lualine_y = {},
 				lualine_z = {}
 			},
+			tabline = {
+				lualine_a = {'windows'},
+				lualine_b = {},
+				lualine_c = {},
+				lualine_x = {},
+				lualine_y = {},
+				lualine_z = {'tabs'}
+			},
+			extensions = {
+				'nvim-tree',
+				'toggleterm'
+			}
 		}
 	end}
 	use { 'nvim-tree/nvim-tree.lua', config = function()
 		require("nvim-tree").setup({
-			view = {
-				mappings = {
-					list = {
-						{ key = "?", action = "toggle_help" },
-					},
-				},
-			},
 		})
 	end}
 	use { 'j-hui/fidget.nvim', config = function()
@@ -427,16 +445,18 @@ local grep_string = function()
 	})
 end
 
-m = require'mapx'.setup{ global = true, whichkey = true }
+m = require('mapx').setup{ global = true, whichkey = true }
 telescope_builtin = require('telescope.builtin')
 nnoremap("-", "<cmd>NvimTreeFindFile<cr>", "File explorer")
 nnoremap("<leader>e", "<cmd>NvimTreeToggle<cr>", "File explorer toggle")
 nnoremap("<leader>a", vim.lsp.buf.code_action, "LSP: Code action")
 nnoremap("<leader>r", vim.lsp.buf.rename, "LSP: Rename")
-nnoremap("<leader>f", telescope_builtin.find_files, "Find files")
+nnoremap("<leader>f", function() telescope_builtin.find_files(); end, "Find files")
 nnoremap("<leader>g", grep_string, "Grep string")
-nnoremap("<leader>b", function() telescope_builtin.buffers({sort_lastused = true}) end, "Buffers")
-nnoremap("<leader>m", telescope_builtin.marks, "Marks")
+nnoremap("<leader>b", function() telescope_builtin.buffers({sort_lastused = true}); end, "Buffers")
+nnoremap("<leader>m", function() telescope_builtin.marks(); end, "Marks")
+nnoremap("<leader>p", function() require('telescope').extensions.neoclip.default(); end, "Clipboard history")
+nnoremap("<leader>q", function() require('telescope').extensions.macroscope.default(); end, "Macro history")
 
 m.nname("<leader>d", "Diffview")
 nnoremap("<leader>dd", "<cmd>DiffviewOpen<cr>", "Diffview: Open")
@@ -449,8 +469,8 @@ nnoremap("<leader>tw", "<cmd>TroubleToggle document_diagnostics<cr>", "Trouble: 
 nnoremap("<leader>tw", "<cmd>TroubleToggle loclist<cr>", "Trouble: Loclist")
 nnoremap("<leader>tw", "<cmd>TroubleToggle quickfix<cr>", "Trouble: Quickfix")
 
-nnoremap("gr", "<cmd>Telescope lsp_references<cr>", "LSP: References")
-nnoremap("gi", "<cmd>Telescope lsp_implementations<cr>", "LSP: Implementations")
+nnoremap("gr", function() telescope_builtin.lsp_references(); end, "LSP: References")
+nnoremap("gi", function() telescope_builtin.lsp_implementations(); end, "LSP: Implementations")
 
 local trouble = require('trouble')
 nnoremap("]q", function() trouble.next({skip_groups = true, jump = true}); end, "Trouble: Next item")
