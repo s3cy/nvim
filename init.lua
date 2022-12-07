@@ -172,6 +172,22 @@ require('packer').startup(function()
 		'nvim-telescope/telescope.nvim',
 		config = function()
 			require('telescope').setup({
+				defaults = {
+					history = {
+						path = vim.fn.stdpath("data") .. "/databases/telescope_history.sqlite3",
+						limit = 100,
+					},
+					mappings = {
+						i = {
+							["<Up>"] = require('telescope.actions').cycle_history_prev,
+							["<Down>"] = require('telescope.actions').cycle_history_next,
+						},
+						n = {
+							["<Up>"] = require('telescope.actions').cycle_history_prev,
+							["<Down>"] = require('telescope.actions').cycle_history_next,
+						},
+					}
+				},
 				pickers = {
 					buffers = {
 						mappings = {
@@ -193,12 +209,17 @@ require('packer').startup(function()
 				}
 			})
 			require('telescope').load_extension('fzf')
-			require('telescope').load_extension('neoclip')
-			require('telescope').load_extension('macroscope')
+			require('telescope').load_extension('smart_history')
 		end,
 		requires = { {'nvim-lua/plenary.nvim'} }
 	}
 	use {'nvim-telescope/telescope-fzf-native.nvim', run = 'make' }
+	use {
+		'nvim-telescope/telescope-smart-history.nvim',
+		requires = {
+			{'kkharji/sqlite.lua', module = 'sqlite'},
+		},
+	}
 	use 'stevearc/dressing.nvim'
 
 	use 'ellisonleao/gruvbox.nvim'
@@ -262,9 +283,18 @@ require('packer').startup(function()
 	use 'folke/which-key.nvim'
 	use 'b0o/mapx.nvim'
 	-- use 'samjwill/nvim-unception'
-	-- use { 'rmagatti/auto-session', config = function()
-	-- 	require('auto-session').setup()
-	-- end}
+	use { 'olimorris/persisted.nvim', config = function()
+		require("persisted").setup({
+			use_git_branch = true,
+			should_autosave = function()
+				if vim.bo.filetype == "alpha" then
+					return false
+				end
+				return true
+			end
+		})
+		require("telescope").load_extension("persisted")
+	end}
 	use { 'akinsho/toggleterm.nvim', config = function()
 		require("toggleterm").setup({
 			size = 20,
@@ -308,8 +338,30 @@ require('packer').startup(function()
 					},
 				},
 			})
+			require('telescope').load_extension('neoclip')
+			require('telescope').load_extension('macroscope')
 		end
 	}
+	use { 'goolord/alpha-nvim', config = function()
+		local alpha = require'alpha'
+		local dashboard = require'alpha.themes.dashboard'
+		dashboard.section.header.val = {
+			[[                               __                ]],
+			[[  ___     ___    ___   __  __ /\_\    ___ ___    ]],
+			[[ / _ `\  / __`\ / __`\/\ \/\ \\/\ \  / __` __`\  ]],
+			[[/\ \/\ \/\  __//\ \_\ \ \ \_/ |\ \ \/\ \/\ \/\ \ ]],
+			[[\ \_\ \_\ \____\ \____/\ \___/  \ \_\ \_\ \_\ \_\]],
+			[[ \/_/\/_/\/____/\/___/  \/__/    \/_/\/_/\/_/\/_/]],
+		}
+		dashboard.section.buttons.val = {
+			dashboard.button( "f", "  Find file", ":lua require('telescope.builtin').find_files()<cr>"),
+			dashboard.button( "g", "  Grep word", ":lua require('telescope.builtin').grep_string({search = \"\", prompt_title = \"Grep string\"})<cr>"),
+			dashboard.button( "l", "  Load session" , ":lua require('telescope').extensions.persisted.persisted()<cr>"),
+			dashboard.button( "q", "  Quit NVIM" , ":qa<CR>"),
+		}
+		dashboard.config.opts.noautocmd = true
+		alpha.setup(dashboard.config)
+	end}
 
 	if packer_bootstrap then
 		require('packer').sync()
@@ -361,7 +413,7 @@ vim.api.nvim_create_autocmd(
 )
 vim.api.nvim_create_autocmd(
 { "WinLeave" },
-{ pattern = "* if &buftype != 'Trouble'", command = "set nocursorline", group = cursorGrp }
+{ pattern = "*", command = "set nocursorline", group = cursorGrp }
 )
 
 -- Strip trailing whitespaces
@@ -423,6 +475,7 @@ autocmd CursorHold * lua vim.diagnostic.open_float(nil, { focusable = false })
 local grep_string = function()
 	local cword = vim.fn.expand("<cword>")
 	require("telescope.builtin").grep_string({
+		prompt_title = "Grep string",
 		search = "",
 		default_text = "'" .. cword,
 		on_complete = cword ~= "" and {
@@ -430,7 +483,7 @@ local grep_string = function()
 				local mode = vim.fn.mode()
 				local keys = mode ~= "n" and "<ESC>" or ""
 				vim.api.nvim_feedkeys(
-				vim.api.nvim_replace_termcodes(keys .. [[$v^ll<C-g>]], true, false, true),
+				vim.api.nvim_replace_termcodes(keys .. [[^v$<C-g>]], true, false, true),
 				"n",
 				true
 				)
