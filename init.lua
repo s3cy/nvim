@@ -32,7 +32,12 @@ require("packer").startup(function()
 
 			local rt = require("rust-tools")
 			rt.setup({
-				server = {},
+				server = {
+					on_attach = function(_, bufnr)
+						vim.keymap.set("n", "K", rt.hover_actions.hover_actions, { buffer = bufnr })
+						vim.keymap.set("n", "<leader>a", rt.code_action_group.code_action_group, { buffer = bufnr })
+					end,
+				},
 				dap = {
 					adapter = require("rust-tools.dap").get_codelldb_adapter(codelldb_path, liblldb_path),
 				},
@@ -395,12 +400,8 @@ require("packer").startup(function()
 					"  Grep word",
 					':lua require(\'telescope.builtin\').grep_string({search = "", prompt_title = "Grep string"})<cr>'
 				),
-				dashboard.button(
-					"l",
-					"  Load session",
-					":lua require('telescope').extensions.persisted.persisted()<cr>"
-				),
-				dashboard.button("q", "  Quit NVIM", ":qa<CR>"),
+				dashboard.button( "l", "  Load session", ":SessionLoad<cr>"),
+				dashboard.button("q", "  Quit NVIM", ":qa<cr>"),
 			}
 			dashboard.config.opts.noautocmd = true
 			alpha.setup(dashboard.config)
@@ -460,17 +461,20 @@ vim.api.nvim_create_autocmd({ "BufWritePre" }, {
 	command = [[%s/\s\+$//e]],
 })
 
--- Open 'trouble' instead of quickfix
+-- Open 'trouble' instead of quickfix/loclist
 local trouble = require("trouble.providers.telescope")
 vim.api.nvim_create_autocmd({ "BufWinEnter" }, {
 	pattern = { "quickfix" },
 	callback = function()
+		local buftype = "quickfix"
+		if vim.fn.getloclist(0, { filewinid = 1 }).filewinid ~= 0 then
+			buftype = "loclist"
+		end
+
 		local ok, trouble = pcall(require, "trouble")
 		if ok then
-			vim.defer_fn(function()
-				vim.cmd("cclose")
-				trouble.open("quickfix")
-			end, 0)
+			vim.api.nvim_win_close(0, true)
+			trouble.toggle(buftype)
 		end
 	end,
 })
@@ -563,13 +567,14 @@ end, "Macro history")
 m.nname("<leader>d", "Diffview")
 nnoremap("<leader>dd", "<cmd>DiffviewOpen<cr>", "Diffview: Open")
 nnoremap("<leader>df", "<cmd>DiffviewFileHistory<cr>", "Diffview: File history")
+vnoremap("<leader>df", ":DiffviewFileHistory<cr>", "Diffview: File history")
 
 m.nname("<leader>t", "Trouble")
 nnoremap("<leader>tt", "<cmd>TroubleToggle<cr>", "Trouble: Toggle")
 nnoremap("<leader>tw", "<cmd>TroubleToggle workspace_diagnostics<cr>", "Trouble: Workspace diagnostics")
-nnoremap("<leader>tw", "<cmd>TroubleToggle document_diagnostics<cr>", "Trouble: Document diagnostics")
-nnoremap("<leader>tw", "<cmd>TroubleToggle loclist<cr>", "Trouble: Loclist")
-nnoremap("<leader>tw", "<cmd>TroubleToggle quickfix<cr>", "Trouble: Quickfix")
+nnoremap("<leader>td", "<cmd>TroubleToggle document_diagnostics<cr>", "Trouble: Document diagnostics")
+nnoremap("<leader>tl", "<cmd>TroubleToggle loclist<cr>", "Trouble: Loclist")
+nnoremap("<leader>tq", "<cmd>TroubleToggle quickfix<cr>", "Trouble: Quickfix")
 
 nnoremap("gr", function()
 	telescope_builtin.lsp_references()
