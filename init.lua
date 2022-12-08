@@ -21,8 +21,8 @@ require("packer").startup(function()
 		end,
 	})
 	use("williamboman/mason-lspconfig.nvim")
-
 	use("neovim/nvim-lspconfig")
+	use("jose-elias-alvarez/null-ls.nvim")
 	use({
 		"simrat39/rust-tools.nvim",
 		config = function()
@@ -32,12 +32,6 @@ require("packer").startup(function()
 
 			local rt = require("rust-tools")
 			rt.setup({
-				server = {
-					on_attach = function(_, bufnr)
-						vim.keymap.set("n", "K", rt.hover_actions.hover_actions, { buffer = bufnr })
-						vim.keymap.set("n", "<leader>a", rt.code_action_group.code_action_group, { buffer = bufnr })
-					end,
-				},
 				dap = {
 					adapter = require("rust-tools.dap").get_codelldb_adapter(codelldb_path, liblldb_path),
 				},
@@ -218,10 +212,14 @@ require("packer").startup(function()
 						override_generic_sorter = true,
 						override_file_sorter = true,
 					},
+					["ui-select"] = {
+						require("telescope.themes").get_dropdown({}),
+					},
 				},
 			})
 			require("telescope").load_extension("fzf")
 			require("telescope").load_extension("smart_history")
+			require("telescope").load_extension("ui-select")
 		end,
 		requires = { { "nvim-lua/plenary.nvim" } },
 	})
@@ -232,7 +230,7 @@ require("packer").startup(function()
 			{ "kkharji/sqlite.lua", module = "sqlite" },
 		},
 	})
-	use("stevearc/dressing.nvim")
+	use("nvim-telescope/telescope-ui-select.nvim")
 
 	use("ellisonleao/gruvbox.nvim")
 	use("kyazdani42/nvim-web-devicons")
@@ -400,7 +398,7 @@ require("packer").startup(function()
 					"  Grep word",
 					':lua require(\'telescope.builtin\').grep_string({search = "", prompt_title = "Grep string"})<cr>'
 				),
-				dashboard.button( "l", "  Load session", ":SessionLoad<cr>"),
+				dashboard.button("l", "  Load session", ":SessionLoad<cr>"),
 				dashboard.button("q", "  Quit NVIM", ":qa<cr>"),
 			}
 			dashboard.config.opts.noautocmd = true
@@ -414,6 +412,13 @@ require("packer").startup(function()
 end)
 
 require("impatient")
+
+local null_ls = require("null-ls")
+null_ls.setup({
+	sources = {
+		null_ls.builtins.formatting.stylua,
+	},
+})
 
 vim.opt.number = true
 vim.opt.relativenumber = true
@@ -542,27 +547,17 @@ local grep_string = function()
 end
 
 m = require("mapx").setup({ global = true, whichkey = true })
-telescope_builtin = require("telescope.builtin")
 nnoremap("-", "<cmd>NvimTreeFindFile<cr>", "File explorer")
 nnoremap("<leader>e", "<cmd>NvimTreeToggle<cr>", "File explorer toggle")
-nnoremap("<leader>a", vim.lsp.buf.code_action, "LSP: Code action")
-nnoremap("<leader>r", vim.lsp.buf.rename, "LSP: Rename")
-nnoremap("<leader>f", function()
-	telescope_builtin.find_files()
-end, "Find files")
+nnoremap("<leader>a", "<cmd>lua vim.lsp.buf.code_action()<cr>", "LSP: Code action")
+vnoremap("<leader>a", ":lua vim.lsp.buf.range_code_action()<cr>", "LSP: Code action")
+nnoremap("<leader>r", "<cmd>lua vim.lsp.buf.rename()<cr>", "LSP: Rename")
+nnoremap("<leader>f", "<cmd>lua require('telescope.builtin').find_files()<cr>", "Find files")
 nnoremap("<leader>g", grep_string, "Grep string")
-nnoremap("<leader>b", function()
-	telescope_builtin.buffers({ sort_lastused = true })
-end, "Buffers")
-nnoremap("<leader>m", function()
-	telescope_builtin.marks()
-end, "Marks")
-nnoremap("<leader>p", function()
-	require("telescope").extensions.neoclip.default()
-end, "Clipboard history")
-nnoremap("<leader>q", function()
-	require("telescope").extensions.macroscope.default()
-end, "Macro history")
+nnoremap("<leader>b", "<cmd>lua require('telescope.builtin').buffers({ sort_lastused = true })<cr>", "Buffers")
+nnoremap("<leader>m", "<cmd>lua require('telescope.builtin').marks()<cr>", "Marks")
+nnoremap("<leader>p", "<cmd>lua require('telescope').extensions.neoclip.default()<cr>", "Clipboard history")
+nnoremap("<leader>q", "<cmd>lua require('telescope').extensions.macroscope.default()<cr>", "Macro history")
 
 m.nname("<leader>d", "Diffview")
 nnoremap("<leader>dd", "<cmd>DiffviewOpen<cr>", "Diffview: Open")
@@ -576,68 +571,33 @@ nnoremap("<leader>td", "<cmd>TroubleToggle document_diagnostics<cr>", "Trouble: 
 nnoremap("<leader>tl", "<cmd>TroubleToggle loclist<cr>", "Trouble: Loclist")
 nnoremap("<leader>tq", "<cmd>TroubleToggle quickfix<cr>", "Trouble: Quickfix")
 
-nnoremap("gr", function()
-	telescope_builtin.lsp_references()
-end, "LSP: References")
-nnoremap("gi", function()
-	telescope_builtin.lsp_implementations()
-end, "LSP: Implementations")
+m.name("gq", "Format")
+nnoremap("gr", "<cmd>lua require('telescope.builtin').lsp_references()<cr>", "LSP: References")
+nnoremap("gi", "<cmd>lua require('telescope.builtin').lsp_implementations()<cr>", "LSP: Implementations")
 
-local trouble = require("trouble")
-nnoremap("]q", function()
-	trouble.next({ skip_groups = true, jump = true })
-end, "Trouble: Next item")
-nnoremap("[q", function()
-	trouble.previous({ skip_groups = true, jump = true })
-end, "Trouble: Previous item")
-nnoremap("]Q", function()
-	trouble.last({ skip_groups = true, jump = true })
-end, "Trouble: Last item")
-nnoremap("[Q", function()
-	trouble.first({ skip_groups = true, jump = true })
-end, "Trouble: First item")
+nnoremap("]q", "<cmd>lua require('trouble').next({ skip_groups = true, jump = true })<cr>", "Trouble: Next item")
+nnoremap(
+	"[q",
+	"<cmd>lua require('trouble').previous({ skip_groups = true, jump = true })<cr>",
+	"Trouble: Previous item"
+)
+nnoremap("]Q", "<cmd>lua require('trouble').last({ skip_groups = true, jump = true })<cr>", "Trouble: Last item")
+nnoremap("[Q", "<cmd>lua require('trouble').first({ skip_groups = true, jump = true })<cr>", "Trouble: First item")
 
-local illuminate = require("illuminate")
-nnoremap("]r", function()
-	illuminate.goto_next_reference(true)
-end, "Next reference")
-nnoremap("[r", function()
-	illuminate.goto_prev_reference(true)
-end, "Previous reference")
-nnoremap("K", vim.lsp.buf.hover, "LSP: hover")
+nnoremap("]r", "<cmd>lua require('illuminate').goto_next_reference(true)<cr>", "Next reference")
+nnoremap("[r", "<cmd>lua require('illuminate').goto_prev_reference(true)<cr>", "Previous reference")
+nnoremap("K", "<cmd>lua vim.lsp.buf.hover()<cr>", "LSP: hover")
 
-local substitute = require("substitute")
-nnoremap("s", function()
-	substitute.operator()
-end, "Substitute: operator")
-nnoremap("ss", function()
-	substitute.line()
-end, "Substitute: line")
-xnoremap("s", function()
-	substitute.visual()
-end, "Substitute: visual")
+nnoremap("s", "<cmd>lua require('substitute').operator()<cr>", "Substitute: operator")
+nnoremap("ss", "<cmd>lua require('substitute').line()<cr>", "Substitute: line")
+vnoremap("s", "<cmd>lua require('substitute').visual()<cr>", "Substitute: visual")
 
-local substitute_range = require("substitute.range")
-nnoremap("<leader>s", function()
-	substitute_range.operator()
-end, "Substitute: range operator")
-nnoremap("<leader>ss", function()
-	substitute_range.word()
-end, "Substitute: range word")
-xnoremap("<leader>s", function()
-	substitute_range.visual()
-end, "Substitute: range visual")
+nnoremap("<leader>s", "<cmd>lua require('substitute').operator()<cr>", "Substitute: range operator")
+nnoremap("<leader>ss", "<cmd>lua require('substitute').word()<cr>", "Substitute: range word")
+vnoremap("<leader>s", "<cmd>lua require('substitute').visual()<cr>", "Substitute: range visual")
 
-local substitute_exchange = require("substitute.exchange")
-nnoremap("sx", function()
-	substitute_exchange.operator()
-end, "Substitute: exchange operator")
-nnoremap("sxx", function()
-	substitute_exchange.line()
-end, "Substitute: exchange line")
-xnoremap("sx", function()
-	substitute_exchange.visual()
-end, "Substitute: exchange visual")
+nnoremap("sx", "<cmd>lua require('substitute.exchange').operator()<cr>", "Substitute: exchange operator")
+nnoremap("sxx", "<cmd>lua require('substitute.exchange').line()<cr>", "Substitute: exchange line")
 
 tnoremap("<C-t>", [[<cmd>exe v:count1 . "ToggleTerm"<cr>]], "silent", "Toggle term")
 nnoremap("<C-t>", [[<cmd>exe v:count1 . "ToggleTerm"<cr>]], "silent", "Toggle term")
