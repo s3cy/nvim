@@ -18,10 +18,44 @@ require("packer").startup(function()
 		"williamboman/mason.nvim",
 		config = function()
 			require("mason").setup()
+			require("mason-lspconfig").setup()
+
+			local orig_util_open_floating_preview = vim.lsp.util.open_floating_preview
+			function vim.lsp.util.open_floating_preview(contents, syntax, opts, ...)
+				opts = opts or {}
+				opts.border = opts.border or "rounded"
+				return orig_util_open_floating_preview(contents, syntax, opts, ...)
+			end
+
+			require("mason-lspconfig").setup_handlers({
+				function(server_name)
+					require("lspconfig")[server_name].setup({})
+				end,
+				["rust_analyzer"] = function()
+					local extension_path = vim.env.HOME .. "/.vscode/extensions/vadimcn.vscode-lldb-1.8.1/"
+					local codelldb_path = extension_path .. "adapter/codelldb"
+					local liblldb_path = extension_path .. "lldb/lib/liblldb.so"
+
+					local rt = require("rust-tools")
+					rt.setup({
+						server = {
+							on_attach = function(_, bufnr)
+								vim.keymap.set("n", "K", rt.hover_actions.hover_actions, { buffer = bufnr })
+							end,
+						},
+						dap = {
+							adapter = require("rust-tools.dap").get_codelldb_adapter(codelldb_path, liblldb_path),
+						},
+					})
+				end,
+			})
 		end,
+		requires = {
+			"williamboman/mason-lspconfig.nvim",
+			"neovim/nvim-lspconfig",
+			"simrat39/rust-tools.nvim",
+		},
 	})
-	use("williamboman/mason-lspconfig.nvim")
-	use("neovim/nvim-lspconfig")
 	use({
 		"jose-elias-alvarez/null-ls.nvim",
 		config = function()
@@ -63,26 +97,6 @@ require("packer").startup(function()
 			null_ls.register(rust_tool)
 		end,
 	})
-	use({
-		"simrat39/rust-tools.nvim",
-		config = function()
-			local extension_path = vim.env.HOME .. "/.vscode/extensions/vadimcn.vscode-lldb-1.8.1/"
-			local codelldb_path = extension_path .. "adapter/codelldb"
-			local liblldb_path = extension_path .. "lldb/lib/liblldb.so"
-
-			local rt = require("rust-tools")
-			rt.setup({
-				server = {
-					on_attach = function(_, bufnr)
-						vim.keymap.set("n", "K", rt.hover_actions.hover_actions, { buffer = bufnr })
-					end,
-				},
-				dap = {
-					adapter = require("rust-tools.dap").get_codelldb_adapter(codelldb_path, liblldb_path),
-				},
-			})
-		end,
-	})
 
 	use({
 		"hrsh7th/nvim-cmp",
@@ -97,14 +111,14 @@ require("packer").startup(function()
 				if cmp.visible() then
 					local entry = cmp.get_selected_entry()
 					if not entry then
-						fallback() -- The fallback function sends a already mapped key. In this case, it's probably `<Tab>`.
+						cmp.select_next_item({ behavior = cmp.SelectBehavior.Select })
 					else
 						cmp.confirm()
 					end
 				elseif vim.fn["vsnip#available"](1) == 1 then
 					feedkey("<Plug>(vsnip-expand-or-jump)", "")
 				else
-					fallback()
+					fallback() -- The fallback function sends a already mapped key. In this case, it's probably `<Tab>`.
 				end
 			end
 
@@ -398,23 +412,28 @@ require("packer").startup(function()
 	use({
 		"nvim-tree/nvim-tree.lua",
 		config = function()
-			require("nvim-tree").setup({})
+			require("nvim-tree").setup({
+				actions = {
+					open_file = {
+						quit_on_open = true,
+					},
+				},
+			})
 		end,
 	})
 	use("folke/trouble.nvim")
 	use("folke/which-key.nvim")
 	use("b0o/mapx.nvim")
 	use({
-		"samjwill/nvim-unception",
-		config = function()
-			vim.g.unception_open_buffer_in_new_tab = true
-		end,
-	})
-	use({
 		"olimorris/persisted.nvim",
 		config = function()
 			require("persisted").setup({
 				use_git_branch = true,
+				before_save = function()
+					vim.cmd("NvimTreeClose")
+					vim.cmd("DiffviewClose")
+					vim.cmd("TroubleClose")
+				end,
 				should_autosave = function()
 					if vim.bo.filetype == "alpha" then
 						return false
@@ -434,6 +453,7 @@ require("packer").startup(function()
 			})
 		end,
 	})
+	use("s3cy/term-util.nvim")
 	use({
 		"gbprod/substitute.nvim",
 		config = function()
@@ -527,6 +547,7 @@ vim.opt.tabstop = 4
 vim.opt.shiftwidth = 4
 vim.opt.undofile = true
 vim.opt.cursorline = true
+vim.opt.signcolumn = "yes"
 vim.g.loaded_netrw = 1 -- disable netrw
 vim.g.loaded_netrwPlugin = 1
 
@@ -602,6 +623,7 @@ vim.api.nvim_create_autocmd({ "BufWinEnter" }, {
 		if ok then
 			vim.api.nvim_win_close(0, true)
 			trouble.toggle(buftype)
+			vim.opt.cursorline = true
 		end
 	end,
 })
@@ -622,22 +644,28 @@ sign({ name = "DiagnosticSignInfo", text = "" })
 
 vim.diagnostic.config({
 	virtual_text = false,
-	signs = true,
-	update_in_insert = false,
-	underline = true,
-	severity_sort = false,
 	float = {
+		close_events = { "BufLeave", "CursorMoved", "InsertEnter", "FocusLost" },
 		border = "rounded",
-		source = "always",
 		header = "",
+		source = "always",
 		prefix = "",
+		scope = "cursor",
 	},
 })
 
-vim.cmd([[
-set signcolumn=yes
-autocmd CursorHold * lua vim.diagnostic.open_float(nil, { focusable = false })
-]])
+vim.api.nvim_create_autocmd("CursorHold", {
+	buffer = bufnr,
+	callback = function()
+		for _, winid in pairs(vim.api.nvim_tabpage_list_wins(0)) do
+			-- check if floating window exists
+			if vim.api.nvim_win_get_config(winid).zindex then
+				return
+			end
+		end
+		vim.diagnostic.open_float({ focusable = false })
+	end,
+})
 
 -- Keymapping
 local grep_string = function()
@@ -678,6 +706,7 @@ nnoremap("<leader>f", "<cmd>lua require('telescope.builtin').find_files()<cr>", 
 nnoremap("<leader>g", grep_string, "Grep string")
 nnoremap("<leader>b", "<cmd>lua require('telescope.builtin').buffers({ sort_lastused = true })<cr>", "Buffers")
 nnoremap("<leader>m", "<cmd>lua require('telescope.builtin').marks()<cr>", "Marks")
+nnoremap("<leader>o", "<cmd>lua require('telescope.builtin').lsp_document_symbols()<cr>", "Symbols outline")
 nnoremap("<leader>p", "<cmd>lua require('telescope').extensions.neoclip.default()<cr>", "Clipboard history")
 nnoremap("<leader>q", "<cmd>lua require('telescope').extensions.macroscope.default()<cr>", "Macro history")
 
@@ -696,6 +725,8 @@ nnoremap("<leader>tq", "<cmd>TroubleToggle quickfix<cr>", "Trouble: Quickfix")
 nnoremap("gr", "<cmd>lua require('telescope.builtin').lsp_references()<cr>", "LSP: References")
 nnoremap("gi", "<cmd>lua require('telescope.builtin').lsp_implementations()<cr>", "LSP: Implementations")
 nnoremap("gq", "<cmd>lua vim.lsp.buf.format()<cr>", "LSP: Format")
+nnoremap("gd", "<cmd>lua vim.lsp.buf.definition()<cr>", "LSP: Definition")
+nnoremap("gD", "<cmd>lua vim.lsp.buf.declaration()<cr>", "LSP: Declaration")
 
 nnoremap("]q", "<cmd>lua require('trouble').next({ skip_groups = true, jump = true })<cr>", "Trouble: Next item")
 nnoremap(
@@ -721,9 +752,9 @@ vnoremap("<leader>s", "<cmd>lua require('substitute.range').visual()<cr>", "Subs
 nnoremap("sx", "<cmd>lua require('substitute.exchange').operator()<cr>", "Substitute: exchange operator")
 nnoremap("sxx", "<cmd>lua require('substitute.exchange').line()<cr>", "Substitute: exchange line")
 
-tnoremap("<C-t>", [[<cmd>exe v:count1 . "ToggleTerm"<cr>]], "silent", "Toggle term")
-nnoremap("<C-t>", [[<cmd>exe v:count1 . "ToggleTerm"<cr>]], "silent", "Toggle term")
-inoremap("<C-t>", [[<esc><cmd>exe v:count1 . "ToggleTerm"<cr>]], "silent", "Toggle term")
+tnoremap("<C-t>", "<cmd>exe v:count1 . 'ToggleTerm'<cr>", "silent", "Toggle term")
+nnoremap("<C-t>", "<cmd>exe v:count1 . 'ToggleTerm'<cr>", "silent", "Toggle term")
+inoremap("<C-t>", "<esc><cmd>exe v:count1 . 'ToggleTerm'<cr>", "silent", "Toggle term")
 
 -- Shell-style command moves
 cnoremap("<C-a>", "<Home>")
