@@ -528,6 +528,7 @@ require("packer").startup(function()
 			alpha.setup(dashboard.config)
 		end,
 	})
+	use({ "ojroques/nvim-osc52" })
 
 	if packer_bootstrap then
 		require("packer").sync()
@@ -610,7 +611,6 @@ vim.api.nvim_create_autocmd({ "BufWritePre" }, {
 })
 
 -- Open 'trouble' instead of quickfix/loclist
-local trouble = require("trouble.providers.telescope")
 vim.api.nvim_create_autocmd({ "BufWinEnter" }, {
 	pattern = { "quickfix" },
 	callback = function()
@@ -627,6 +627,21 @@ vim.api.nvim_create_autocmd({ "BufWinEnter" }, {
 		end
 	end,
 })
+
+-- Osc52 yank
+local function copy(lines, _)
+	require("osc52").copy(table.concat(lines, "\n"))
+end
+
+local function paste()
+	return { vim.fn.split(vim.fn.getreg(""), "\n"), vim.fn.getregtype("") }
+end
+
+vim.g.clipboard = {
+	name = "osc52",
+	copy = { ["+"] = copy, ["*"] = copy },
+	paste = { ["+"] = paste, ["*"] = paste },
+}
 
 -- Diagnostic
 local sign = function(opts)
@@ -722,8 +737,8 @@ nnoremap("<leader>td", "<cmd>TroubleToggle document_diagnostics<cr>", "Trouble: 
 nnoremap("<leader>tl", "<cmd>TroubleToggle loclist<cr>", "Trouble: Loclist")
 nnoremap("<leader>tq", "<cmd>TroubleToggle quickfix<cr>", "Trouble: Quickfix")
 
-nnoremap("gr", "<cmd>lua require('telescope.builtin').lsp_references()<cr>", "LSP: References")
-nnoremap("gi", "<cmd>lua require('telescope.builtin').lsp_implementations()<cr>", "LSP: Implementations")
+nnoremap("gr", "<cmd>lua require('telescope.builtin').lsp_references({jump_type = 'never'})<cr>", "LSP: References")
+nnoremap("gi", "<cmd>lua require('telescope.builtin').lsp_implementations({jump_type = 'never'})<cr>", "LSP: Implementations")
 nnoremap("gq", "<cmd>lua vim.lsp.buf.format()<cr>", "LSP: Format")
 nnoremap("gd", "<cmd>lua vim.lsp.buf.definition()<cr>", "LSP: Definition")
 nnoremap("gD", "<cmd>lua vim.lsp.buf.declaration()<cr>", "LSP: Declaration")
