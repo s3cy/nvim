@@ -13,6 +13,7 @@ local packer_bootstrap = ensure_packer()
 
 require("packer").startup(function()
 	use("wbthomason/packer.nvim")
+	use("nvim-lua/plenary.nvim")
 
 	use({
 		"williamboman/mason.nvim",
@@ -415,6 +416,7 @@ require("packer").startup(function()
 			require("neoclip").setup({
 				enable_persistent_history = true,
 				continuous_sync = true,
+				prompt = "Clip> ",
 				keys = {
 					fzf = {
 						paste = false,
@@ -620,39 +622,21 @@ vim.api.nvim_create_autocmd("CursorHold", {
 })
 
 -- Keymapping
--- local grep_string = function()
--- 	local cword = vim.fn.expand("<cword>")
--- 	require("telescope.builtin").grep_string({
--- 		prompt_title = "Grep string",
--- 		search = "",
--- 		default_text = "'" .. cword,
--- 		on_complete = cword ~= ""
--- 				and {
--- 					function(picker)
--- 						local mode = vim.fn.mode()
--- 						local keys = mode ~= "n" and "<ESC>" or ""
--- 						vim.api.nvim_feedkeys(
--- 							vim.api.nvim_replace_termcodes(keys .. [[^v$<C-g>]], true, false, true),
--- 							"n",
--- 							true
--- 						)
--- 						-- should you have more callbacks, just pop the first one
--- 						table.remove(picker._completion_callbacks, 1)
--- 						-- copy mappings s.t. eg <C-n>, <C-p> works etc
--- 						vim.tbl_map(function(mapping)
--- 							vim.api.nvim_buf_set_keymap(0, "s", mapping.lhs, mapping.rhs, {})
--- 						end, vim.api.nvim_buf_get_keymap(0, "i"))
--- 					end,
--- 				}
--- 			or nil,
--- 	})
--- end
+function files_dir_aware()
+	opts = {}
+	local buf_dir = vim.fn.expand("%:h")
+	if buf_dir == "." or buf_dir == "" then
+		buf_dir = nil
+	end
+	opts.fzf_opts = { ["--query"] = buf_dir }
+	require("fzf-lua").files(opts)
+end
 
 m = require("mapx").setup({ global = true, whichkey = true })
 nnoremap("<leader>a", "<cmd>lua vim.lsp.buf.code_action()<cr>", "LSP: Code action")
 vnoremap("<leader>a", ":lua vim.lsp.buf.range_code_action()<cr>", "LSP: Code action")
 nnoremap("<leader>r", "<cmd>lua vim.lsp.buf.rename()<cr>", "LSP: Rename")
-nnoremap("<leader>f", "<cmd>lua require('fzf-lua').files()<cr>", "Find files")
+nnoremap("<leader>f", files_dir_aware, "Find files")
 nnoremap("<leader>g", "<cmd>lua require('fzf-lua').live_grep_resume()<cr>", "Grep string")
 nnoremap("<leader>b", "<cmd>lua require('fzf-lua').buffers()<cr>", "Buffers")
 nnoremap("<leader>m", "<cmd>lua require('fzf-lua').marks()<cr>", "Marks")
