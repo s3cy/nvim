@@ -284,62 +284,11 @@ require("packer").startup(function()
 	})
 
 	use({
-		"nvim-telescope/telescope.nvim",
+		"ibhagwan/fzf-lua",
 		config = function()
-			require("telescope").setup({
-				defaults = {
-					history = {
-						path = vim.fn.stdpath("data") .. "/databases/telescope_history.sqlite3",
-						limit = 100,
-					},
-					mappings = {
-						i = {
-							["<Up>"] = require("telescope.actions").cycle_history_prev,
-							["<Down>"] = require("telescope.actions").cycle_history_next,
-						},
-						n = {
-							["<Up>"] = require("telescope.actions").cycle_history_prev,
-							["<Down>"] = require("telescope.actions").cycle_history_next,
-						},
-					},
-				},
-				pickers = {
-					buffers = {
-						mappings = {
-							i = {
-								["<C-k>"] = "delete_buffer",
-							},
-							n = {
-								["<C-k>"] = "delete_buffer",
-							},
-						},
-					},
-				},
-				extensions = {
-					fzf = {
-						fuzzy = true,
-						override_generic_sorter = true,
-						override_file_sorter = true,
-					},
-					["ui-select"] = {
-						require("telescope.themes").get_dropdown({}),
-					},
-				},
-			})
-			require("telescope").load_extension("fzf")
-			require("telescope").load_extension("smart_history")
-			require("telescope").load_extension("ui-select")
+			require("fzf-lua").register_ui_select()
 		end,
-		requires = { "nvim-lua/plenary.nvim" },
 	})
-	use({ "nvim-telescope/telescope-fzf-native.nvim", run = "make" })
-	use({
-		"nvim-telescope/telescope-smart-history.nvim",
-		requires = {
-			{ "kkharji/sqlite.lua", module = "sqlite" },
-		},
-	})
-	use("nvim-telescope/telescope-ui-select.nvim")
 
 	use("ellisonleao/gruvbox.nvim")
 	use("kyazdani42/nvim-web-devicons")
@@ -409,18 +358,7 @@ require("packer").startup(function()
 			"arkav/lualine-lsp-progress",
 		},
 	})
-	use({
-		"nvim-tree/nvim-tree.lua",
-		config = function()
-			require("nvim-tree").setup({
-				actions = {
-					open_file = {
-						quit_on_open = true,
-					},
-				},
-			})
-		end,
-	})
+	use("justinmk/vim-dirvish")
 	use("folke/trouble.nvim")
 	use("folke/which-key.nvim")
 	use("b0o/mapx.nvim")
@@ -430,7 +368,6 @@ require("packer").startup(function()
 			require("persisted").setup({
 				use_git_branch = true,
 				before_save = function()
-					vim.cmd("NvimTreeClose")
 					vim.cmd("DiffviewClose")
 					vim.cmd("TroubleClose")
 				end,
@@ -441,7 +378,7 @@ require("packer").startup(function()
 					return true
 				end,
 			})
-			require("telescope").load_extension("persisted")
+			-- require("telescope").load_extension("persisted")
 		end,
 	})
 	use({
@@ -479,26 +416,12 @@ require("packer").startup(function()
 				enable_persistent_history = true,
 				continuous_sync = true,
 				keys = {
-					telescope = {
-						i = {
-							select = "<cr>",
-							paste = false,
-							paste_behind = false,
-							replay = false,
-							delete = "<C-k>",
-						},
-						n = {
-							select = "<cr>",
-							paste = false,
-							paste_behind = false,
-							replay = false,
-							delete = "<C-k>",
-						},
+					fzf = {
+						paste = false,
+						paste_behind = false,
 					},
 				},
 			})
-			require("telescope").load_extension("neoclip")
-			require("telescope").load_extension("macroscope")
 		end,
 	})
 	use({
@@ -515,12 +438,8 @@ require("packer").startup(function()
 				[[ \/_/\/_/\/____/\/___/  \/__/    \/_/\/_/\/_/\/_/]],
 			}
 			dashboard.section.buttons.val = {
-				dashboard.button("f", "  Find file", ":lua require('telescope.builtin').find_files()<cr>"),
-				dashboard.button(
-					"g",
-					"  Grep word",
-					':lua require(\'telescope.builtin\').grep_string({search = "", prompt_title = "Grep string"})<cr>'
-				),
+				dashboard.button("f", "  Find file", ":lua require('fzf-lua').files()<cr>"),
+				dashboard.button("g", "  Grep word", ":lua require('fzf-lua').live_grep_resume()<cr>"),
 				dashboard.button("l", "  Load session", ":SessionLoad<cr>"),
 				dashboard.button("q", "  Quit NVIM", ":qa<cr>"),
 			}
@@ -540,6 +459,24 @@ if packer_bootstrap then
 end
 
 require("impatient")
+
+require("fzf-lua").setup({
+	winopts = {
+		border = false,
+		fullscreen = true,
+	},
+	keymap = {},
+	files = {
+		fzf_opts = {
+			["--history"] = vim.fn.stdpath("data") .. "/databases/fzf-lua-files-history",
+		},
+	},
+	grep = {
+		fzf_opts = {
+			["--history"] = vim.fn.stdpath("data") .. "/databases/fzf-lua-grep-history",
+		},
+	},
+})
 
 vim.opt.number = true
 vim.opt.relativenumber = true
@@ -683,47 +620,44 @@ vim.api.nvim_create_autocmd("CursorHold", {
 })
 
 -- Keymapping
-local grep_string = function()
-	local cword = vim.fn.expand("<cword>")
-	require("telescope.builtin").grep_string({
-		prompt_title = "Grep string",
-		search = "",
-		default_text = "'" .. cword,
-		on_complete = cword ~= ""
-				and {
-					function(picker)
-						local mode = vim.fn.mode()
-						local keys = mode ~= "n" and "<ESC>" or ""
-						vim.api.nvim_feedkeys(
-							vim.api.nvim_replace_termcodes(keys .. [[^v$<C-g>]], true, false, true),
-							"n",
-							true
-						)
-						-- should you have more callbacks, just pop the first one
-						table.remove(picker._completion_callbacks, 1)
-						-- copy mappings s.t. eg <C-n>, <C-p> works etc
-						vim.tbl_map(function(mapping)
-							vim.api.nvim_buf_set_keymap(0, "s", mapping.lhs, mapping.rhs, {})
-						end, vim.api.nvim_buf_get_keymap(0, "i"))
-					end,
-				}
-			or nil,
-	})
-end
+-- local grep_string = function()
+-- 	local cword = vim.fn.expand("<cword>")
+-- 	require("telescope.builtin").grep_string({
+-- 		prompt_title = "Grep string",
+-- 		search = "",
+-- 		default_text = "'" .. cword,
+-- 		on_complete = cword ~= ""
+-- 				and {
+-- 					function(picker)
+-- 						local mode = vim.fn.mode()
+-- 						local keys = mode ~= "n" and "<ESC>" or ""
+-- 						vim.api.nvim_feedkeys(
+-- 							vim.api.nvim_replace_termcodes(keys .. [[^v$<C-g>]], true, false, true),
+-- 							"n",
+-- 							true
+-- 						)
+-- 						-- should you have more callbacks, just pop the first one
+-- 						table.remove(picker._completion_callbacks, 1)
+-- 						-- copy mappings s.t. eg <C-n>, <C-p> works etc
+-- 						vim.tbl_map(function(mapping)
+-- 							vim.api.nvim_buf_set_keymap(0, "s", mapping.lhs, mapping.rhs, {})
+-- 						end, vim.api.nvim_buf_get_keymap(0, "i"))
+-- 					end,
+-- 				}
+-- 			or nil,
+-- 	})
+-- end
 
 m = require("mapx").setup({ global = true, whichkey = true })
-nnoremap("-", "<cmd>NvimTreeFindFile<cr>", "File explorer")
-nnoremap("<leader>e", "<cmd>NvimTreeToggle<cr>", "File explorer toggle")
 nnoremap("<leader>a", "<cmd>lua vim.lsp.buf.code_action()<cr>", "LSP: Code action")
 vnoremap("<leader>a", ":lua vim.lsp.buf.range_code_action()<cr>", "LSP: Code action")
 nnoremap("<leader>r", "<cmd>lua vim.lsp.buf.rename()<cr>", "LSP: Rename")
-nnoremap("<leader>f", "<cmd>lua require('telescope.builtin').find_files()<cr>", "Find files")
-nnoremap("<leader>g", grep_string, "Grep string")
-nnoremap("<leader>b", "<cmd>lua require('telescope.builtin').buffers({ sort_lastused = true })<cr>", "Buffers")
-nnoremap("<leader>m", "<cmd>lua require('telescope.builtin').marks()<cr>", "Marks")
-nnoremap("<leader>o", "<cmd>lua require('telescope.builtin').lsp_document_symbols()<cr>", "Symbols outline")
-nnoremap("<leader>p", "<cmd>lua require('telescope').extensions.neoclip.default()<cr>", "Clipboard history")
-nnoremap("<leader>q", "<cmd>lua require('telescope').extensions.macroscope.default()<cr>", "Macro history")
+nnoremap("<leader>f", "<cmd>lua require('fzf-lua').files()<cr>", "Find files")
+nnoremap("<leader>g", "<cmd>lua require('fzf-lua').live_grep_resume()<cr>", "Grep string")
+nnoremap("<leader>b", "<cmd>lua require('fzf-lua').buffers()<cr>", "Buffers")
+nnoremap("<leader>m", "<cmd>lua require('fzf-lua').marks()<cr>", "Marks")
+nnoremap("<leader>o", "<cmd>lua require('fzf-lua').lsp_document_symbols()<cr>", "Symbols outline")
+nnoremap("<leader>p", "<cmd>lua require('neoclip.fzf')()<cr>", "Clipboard history")
 
 m.nname("<leader>d", "Diffview")
 nnoremap("<leader>dd", "<cmd>DiffviewOpen<cr>", "Diffview: Open")
@@ -737,8 +671,8 @@ nnoremap("<leader>td", "<cmd>TroubleToggle document_diagnostics<cr>", "Trouble: 
 nnoremap("<leader>tl", "<cmd>TroubleToggle loclist<cr>", "Trouble: Loclist")
 nnoremap("<leader>tq", "<cmd>TroubleToggle quickfix<cr>", "Trouble: Quickfix")
 
-nnoremap("gr", "<cmd>lua require('telescope.builtin').lsp_references({jump_type = 'never'})<cr>", "LSP: References")
-nnoremap("gi", "<cmd>lua require('telescope.builtin').lsp_implementations({jump_type = 'never'})<cr>", "LSP: Implementations")
+nnoremap("gr", "<cmd>lua require('fzf-lua').lsp_references()<cr>", "LSP: References")
+nnoremap("gi", "<cmd>lua require('fzf-lua').lsp_implementations()<cr>", "LSP: Implementations")
 nnoremap("gq", "<cmd>lua vim.lsp.buf.format()<cr>", "LSP: Format")
 nnoremap("gd", "<cmd>lua vim.lsp.buf.definition()<cr>", "LSP: Definition")
 nnoremap("gD", "<cmd>lua vim.lsp.buf.declaration()<cr>", "LSP: Declaration")
