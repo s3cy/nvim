@@ -96,6 +96,36 @@ require("packer").startup(function()
 				},
 			}
 			null_ls.register(rust_tool)
+
+			local lsp_rename = {
+				method = null_ls.methods.CODE_ACTION,
+				filetypes = {},
+				generator = {
+					fn = function(params)
+						local actions = {}
+						local active_clients = vim.lsp.get_active_clients({ bufnr = params.bufnr })
+						local cap_rename = false
+						for _, val in pairs(active_clients) do
+							if val.server_capabilities.renameProvider then
+								cap_rename = true
+								break
+							end
+						end
+
+						if cap_rename then
+							table.insert(actions, {
+								title = "rename",
+								action = function()
+									vim.api.nvim_buf_call(params.bufnr, vim.lsp.buf.rename)
+								end,
+							})
+						end
+
+						return actions
+					end,
+				},
+			}
+			null_ls.register(lsp_rename)
 		end,
 	})
 
@@ -103,10 +133,7 @@ require("packer").startup(function()
 		"hrsh7th/nvim-cmp",
 		config = function()
 			local cmp = require("cmp")
-
-			local feedkey = function(key, mode)
-				vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes(key, true, true, true), mode, true)
-			end
+			local luasnip = require("luasnip")
 
 			local super_tab = function(fallback)
 				if cmp.visible() then
@@ -116,8 +143,8 @@ require("packer").startup(function()
 					else
 						cmp.confirm()
 					end
-				elseif vim.fn["vsnip#available"](1) == 1 then
-					feedkey("<Plug>(vsnip-expand-or-jump)", "")
+				elseif luasnip.expand_or_jumpable() then
+					luasnip.expand_or_jump()
 				else
 					fallback() -- The fallback function sends a already mapped key. In this case, it's probably `<Tab>`.
 				end
@@ -126,8 +153,8 @@ require("packer").startup(function()
 			local super_s_tab = function()
 				if cmp.visible() then
 					cmp.confirm()
-				elseif vim.fn["vsnip#jumpable"](-1) == 1 then
-					feedkey("<Plug>(vsnip-jump-prev)", "")
+				elseif luasnip.jumpable(-1) then
+					luasnip.jump(-1)
 				end
 			end
 
@@ -152,7 +179,7 @@ require("packer").startup(function()
 				-- Enable LSP snippets
 				snippet = {
 					expand = function(args)
-						vim.fn["vsnip#anonymous"](args.body)
+						require('luasnip').lsp_expand(args.body)
 					end,
 				},
 				mapping = {
@@ -172,7 +199,7 @@ require("packer").startup(function()
 					{ name = "nvim_lsp_signature_help" }, -- display function signatures with current parameter emphasized
 					{ name = "nvim_lua" }, -- complete neovim's Lua runtime API such vim.lsp.*
 					{ name = "buffer" }, -- source current buffer
-					{ name = "vsnip" }, -- nvim-cmp source for vim-vsnip
+					{ name = "luasnip" }, -- nvim-cmp source for luasnip
 					{ name = "calc" }, -- source for math calculation
 				},
 				window = {
@@ -184,7 +211,7 @@ require("packer").startup(function()
 					format = function(entry, item)
 						local menu_icon = {
 							nvim_lsp = "λ",
-							vsnip = "⋗",
+							luasnip = "⋗",
 							buffer = "Ω",
 							path = "🖫",
 						}
@@ -198,10 +225,10 @@ require("packer").startup(function()
 	use("hrsh7th/cmp-nvim-lsp")
 	use("hrsh7th/cmp-nvim-lua")
 	use("hrsh7th/cmp-nvim-lsp-signature-help")
-	use("hrsh7th/cmp-vsnip")
 	use("hrsh7th/cmp-path")
 	use("hrsh7th/cmp-buffer")
-	use("hrsh7th/vim-vsnip")
+	use("L3MON4D3/LuaSnip")
+	use("saadparwaiz1/cmp_luasnip")
 
 	use({
 		"nvim-treesitter/nvim-treesitter",
@@ -359,7 +386,6 @@ require("packer").startup(function()
 			"arkav/lualine-lsp-progress",
 		},
 	})
-	use("justinmk/vim-dirvish")
 	use("folke/trouble.nvim")
 	use("folke/which-key.nvim")
 	use("b0o/mapx.nvim")
@@ -622,21 +648,9 @@ vim.api.nvim_create_autocmd("CursorHold", {
 })
 
 -- Keymapping
-function files_dir_aware()
-	opts = {}
-	local buf_dir = vim.fn.expand("%:h")
-	if buf_dir == "." or buf_dir == "" then
-		buf_dir = nil
-	end
-	opts.fzf_opts = { ["--query"] = buf_dir }
-	require("fzf-lua").files(opts)
-end
-
 m = require("mapx").setup({ global = true, whichkey = true })
-nnoremap("<leader>a", "<cmd>lua vim.lsp.buf.code_action()<cr>", "LSP: Code action")
-vnoremap("<leader>a", ":lua vim.lsp.buf.range_code_action()<cr>", "LSP: Code action")
-nnoremap("<leader>r", "<cmd>lua vim.lsp.buf.rename()<cr>", "LSP: Rename")
-nnoremap("<leader>f", files_dir_aware, "Find files")
+nnoremap("<leader>a", "<cmd>lua require('fzf-lua').args()<cr>", "Args")
+nnoremap("<leader>f", "<cmd>lua require('fzf-lua').files()<cr>", "Find files")
 nnoremap("<leader>g", "<cmd>lua require('fzf-lua').live_grep_resume()<cr>", "Grep string")
 nnoremap("<leader>b", "<cmd>lua require('fzf-lua').buffers()<cr>", "Buffers")
 nnoremap("<leader>m", "<cmd>lua require('fzf-lua').marks()<cr>", "Marks")
@@ -655,6 +669,7 @@ nnoremap("<leader>td", "<cmd>TroubleToggle document_diagnostics<cr>", "Trouble: 
 nnoremap("<leader>tl", "<cmd>TroubleToggle loclist<cr>", "Trouble: Loclist")
 nnoremap("<leader>tq", "<cmd>TroubleToggle quickfix<cr>", "Trouble: Quickfix")
 
+nnoremap("ga", "<cmd>lua vim.lsp.buf.code_action()<cr>", "LSP: Code action")
 nnoremap("gr", "<cmd>lua require('fzf-lua').lsp_references()<cr>", "LSP: References")
 nnoremap("gi", "<cmd>lua require('fzf-lua').lsp_implementations()<cr>", "LSP: Implementations")
 nnoremap("gq", "<cmd>lua vim.lsp.buf.format()<cr>", "LSP: Format")
