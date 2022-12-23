@@ -1,25 +1,22 @@
-local ensure_packer = function()
-	local fn = vim.fn
-	local install_path = fn.stdpath("data") .. "/site/pack/packer/start/packer.nvim"
-	if fn.empty(fn.glob(install_path)) > 0 then
-		fn.system({ "git", "clone", "--depth", "1", "https://github.com/wbthomason/packer.nvim", install_path })
-		vim.cmd([[packadd packer.nvim]])
-		return true
-	end
-	return false
+pcall(require, "impatient")
+
+-- Install packer
+local install_path = vim.fn.stdpath("data") .. "/site/pack/packer/start/packer.nvim"
+local is_bootstrap = false
+if vim.fn.empty(vim.fn.glob(install_path)) > 0 then
+	is_bootstrap = true
+	vim.fn.system({ "git", "clone", "--depth", "1", "https://github.com/wbthomason/packer.nvim", install_path })
+	vim.cmd([[packadd packer.nvim]])
 end
 
-local packer_bootstrap = ensure_packer()
-
-require("packer").startup(function()
+require("packer").startup(function(use)
 	use("wbthomason/packer.nvim")
 	use("nvim-lua/plenary.nvim")
 
 	use({
-		"williamboman/mason.nvim",
+		"neovim/nvim-lspconfig",
 		config = function()
 			require("mason").setup()
-			require("mason-lspconfig").setup()
 
 			local orig_util_open_floating_preview = vim.lsp.util.open_floating_preview
 			function vim.lsp.util.open_floating_preview(contents, syntax, opts, ...)
@@ -28,7 +25,9 @@ require("packer").startup(function()
 				return orig_util_open_floating_preview(contents, syntax, opts, ...)
 			end
 
-			require("mason-lspconfig").setup_handlers({
+			local mason_lspconfig = require("mason-lspconfig")
+			mason_lspconfig.setup()
+			mason_lspconfig.setup_handlers({
 				function(server_name)
 					require("lspconfig")[server_name].setup({})
 				end,
@@ -52,9 +51,8 @@ require("packer").startup(function()
 			})
 		end,
 		requires = {
+			"williamboman/mason.nvim",
 			"williamboman/mason-lspconfig.nvim",
-			"neovim/nvim-lspconfig",
-			"simrat39/rust-tools.nvim",
 		},
 	})
 	use({
@@ -66,67 +64,12 @@ require("packer").startup(function()
 					null_ls.builtins.formatting.stylua,
 				},
 			})
-
-			local rust_tool = {
-				method = null_ls.methods.CODE_ACTION,
-				filetypes = { "rust" },
-				generator = {
-					fn = function(params)
-						local ok, rt = pcall(require, "rust-tools")
-						if not ok then
-							return
-						end
-
-						local actions = {}
-						table.insert(actions, {
-							title = "expand macro",
-							action = function()
-								vim.api.nvim_buf_call(params.bufnr, rt.expand_macro.expand_macro)
-							end,
-						})
-						table.insert(actions, {
-							title = "join lines",
-							action = function()
-								vim.api.nvim_buf_call(params.bufnr, rt.join_lines.join_lines)
-							end,
-						})
-
-						return actions
-					end,
-				},
-			}
-			null_ls.register(rust_tool)
-
-			local lsp_rename = {
-				method = null_ls.methods.CODE_ACTION,
-				filetypes = {},
-				generator = {
-					fn = function(params)
-						local actions = {}
-						local active_clients = vim.lsp.get_active_clients({ bufnr = params.bufnr })
-						local cap_rename = false
-						for _, val in pairs(active_clients) do
-							if val.server_capabilities.renameProvider then
-								cap_rename = true
-								break
-							end
-						end
-
-						if cap_rename then
-							table.insert(actions, {
-								title = "rename",
-								action = function()
-									vim.api.nvim_buf_call(params.bufnr, vim.lsp.buf.rename)
-								end,
-							})
-						end
-
-						return actions
-					end,
-				},
-			}
-			null_ls.register(lsp_rename)
 		end,
+	})
+	use("simrat39/rust-tools.nvim")
+	use({
+		"olexsmir/gopher.nvim",
+		ft = "go",
 	})
 
 	use({
@@ -179,12 +122,14 @@ require("packer").startup(function()
 				-- Enable LSP snippets
 				snippet = {
 					expand = function(args)
-						require('luasnip').lsp_expand(args.body)
+						require("luasnip").lsp_expand(args.body)
 					end,
 				},
 				mapping = {
 					["<C-p>"] = cmp.mapping.select_prev_item(),
+					["<Up>"] = cmp.mapping.select_prev_item(),
 					["<C-n>"] = cmp.mapping.select_next_item(),
+					["<Down>"] = cmp.mapping.select_next_item(),
 					["<C-u>"] = cmp.mapping.scroll_docs(-4),
 					["<C-d>"] = cmp.mapping.scroll_docs(4),
 					["<C-Space>"] = cmp.mapping(complete, { "i", "s" }),
@@ -221,14 +166,15 @@ require("packer").startup(function()
 				},
 			})
 		end,
+		event = { "InsertEnter" },
 	})
-	use("hrsh7th/cmp-nvim-lsp")
-	use("hrsh7th/cmp-nvim-lua")
-	use("hrsh7th/cmp-nvim-lsp-signature-help")
-	use("hrsh7th/cmp-path")
-	use("hrsh7th/cmp-buffer")
-	use("L3MON4D3/LuaSnip")
-	use("saadparwaiz1/cmp_luasnip")
+	use({ "hrsh7th/cmp-nvim-lsp", after = "nvim-cmp" })
+	use({ "hrsh7th/cmp-nvim-lua", after = "nvim-cmp" })
+	use({ "hrsh7th/cmp-nvim-lsp-signature-help", after = "nvim-cmp" })
+	use({ "hrsh7th/cmp-path", after = "nvim-cmp" })
+	use({ "hrsh7th/cmp-buffer", after = "nvim-cmp" })
+	use({ "L3MON4D3/LuaSnip", after = "nvim-cmp" })
+	use({ "saadparwaiz1/cmp_luasnip", after = "nvim-cmp" })
 
 	use({
 		"nvim-treesitter/nvim-treesitter",
@@ -290,31 +236,70 @@ require("packer").startup(function()
 				},
 			})
 		end,
+	})
+	use({ "nvim-treesitter/nvim-treesitter-textobjects", after = "nvim-treesitter" })
+	use({ "nvim-treesitter/nvim-treesitter-context", after = "nvim-treesitter" })
+
+	use({
+		"mfussenegger/nvim-dap",
+		config = function()
+			local dap = require("dap")
+			local dapui = require("dapui")
+			dapui.setup({
+				layouts = {
+					{
+						elements = {
+							"console",
+							"repl",
+						},
+						size = 0.25,
+						position = "bottom",
+					},
+					{
+						elements = {
+							"watches",
+							"stacks",
+							"breakpoints",
+						},
+						size = 45,
+						position = "left",
+					},
+				},
+			})
+			dap.listeners.after.event_initialized["dapui_config"] = function()
+				dapui.open()
+			end
+			dap.listeners.before.event_terminated["dapui_config"] = function()
+				dapui.close()
+			end
+			dap.listeners.before.event_exited["dapui_config"] = function()
+				dapui.close()
+			end
+			require("nvim-dap-virtual-text").setup()
+		end,
 		requires = {
-			{
-				"nvim-treesitter/nvim-treesitter-textobjects",
-				after = "nvim-treesitter",
-			},
-			{
-				"nvim-treesitter/nvim-treesitter-context",
-				after = "nvim-treesitter",
-			},
+			"rcarriga/nvim-dap-ui",
+			"theHamsta/nvim-dap-virtual-text",
 		},
 	})
-
-	use("mfussenegger/nvim-dap")
 	use({
-		"rcarriga/nvim-dap-ui",
+		"leoluz/nvim-dap-go",
 		config = function()
-			require("dapui").setup()
+			require("dap-go").setup()
+			vim.cmd([[
+				command! GoDebug :lua require"dap-go".debug_test()
+				command! GoDebugLast :lua require"dap-go".debug_last_test()
+			]])
 		end,
-		requires = { "mfussenegger/nvim-dap" },
+		ft = "go",
 	})
 
 	use({
 		"ibhagwan/fzf-lua",
 		config = function()
-			require("fzf-lua").register_ui_select()
+			local fzf_lua = require("fzf-lua")
+			fzf_lua.setup({})
+			fzf_lua.register_ui_select({}, true) -- silent = true
 		end,
 	})
 
@@ -397,6 +382,8 @@ require("packer").startup(function()
 				before_save = function()
 					vim.cmd("DiffviewClose")
 					vim.cmd("TroubleClose")
+					vim.cmd("DapTerminate")
+					require("dapui").close()
 				end,
 				should_autosave = function()
 					if vim.bo.filetype == "alpha" then
@@ -442,10 +429,14 @@ require("packer").startup(function()
 			require("neoclip").setup({
 				enable_persistent_history = true,
 				continuous_sync = true,
+				on_paste = {
+					set_reg = true,
+				},
 				prompt = "Clip> ",
 				keys = {
 					fzf = {
-						paste = false,
+						select = false,
+						paste = "default",
 						paste_behind = false,
 					},
 				},
@@ -467,7 +458,7 @@ require("packer").startup(function()
 			}
 			dashboard.section.buttons.val = {
 				dashboard.button("f", "  Find file", ":lua require('fzf-lua').files()<cr>"),
-				dashboard.button("g", "  Grep word", ":lua require('fzf-lua').live_grep_resume()<cr>"),
+				dashboard.button("g", "  Grep word", ":lua require('fzf-lua').grep({search = ''})<cr>"),
 				dashboard.button("l", "  Load session", ":SessionLoad<cr>"),
 				dashboard.button("q", "  Quit NVIM", ":qa<cr>"),
 			}
@@ -475,36 +466,17 @@ require("packer").startup(function()
 			alpha.setup(dashboard.config)
 		end,
 	})
-	use({ "ojroques/nvim-osc52" })
+	use("ojroques/nvim-osc52")
+	use("cbochs/portal.nvim")
 
-	if packer_bootstrap then
+	if is_bootstrap then
 		require("packer").sync()
 	end
 end)
 
-if packer_bootstrap then
+if is_bootstrap then
 	return
 end
-
-require("impatient")
-
-require("fzf-lua").setup({
-	winopts = {
-		border = false,
-		fullscreen = true,
-	},
-	keymap = {},
-	files = {
-		fzf_opts = {
-			["--history"] = vim.fn.stdpath("data") .. "/databases/fzf-lua-files-history",
-		},
-	},
-	grep = {
-		fzf_opts = {
-			["--history"] = vim.fn.stdpath("data") .. "/databases/fzf-lua-grep-history",
-		},
-	},
-})
 
 vim.opt.number = true
 vim.opt.relativenumber = true
@@ -543,6 +515,14 @@ require("gruvbox").setup({
 vim.cmd([[
 colorscheme gruvbox
 ]])
+
+-- Automatically source and re-compile packer whenever you save this init.lua
+local packer_group = vim.api.nvim_create_augroup("Packer", { clear = true })
+vim.api.nvim_create_autocmd("BufWritePost", {
+	command = "source <afile> | PackerCompile",
+	group = packer_group,
+	pattern = vim.fn.expand("$MYVIMRC"),
+})
 
 -- Remember cursor position
 vim.api.nvim_create_autocmd(
@@ -648,19 +628,25 @@ vim.api.nvim_create_autocmd("CursorHold", {
 })
 
 -- Keymapping
-m = require("mapx").setup({ global = true, whichkey = true })
+m = require("mapx").setup({ global = "force", whichkey = true })
 nnoremap("<leader>a", "<cmd>lua require('fzf-lua').args()<cr>", "Args")
 nnoremap("<leader>f", "<cmd>lua require('fzf-lua').files()<cr>", "Find files")
-nnoremap("<leader>g", "<cmd>lua require('fzf-lua').live_grep_resume()<cr>", "Grep string")
+nnoremap("<leader>g", "<cmd>lua require('fzf-lua').grep({search = ''})<cr>", "Grep string")
 nnoremap("<leader>b", "<cmd>lua require('fzf-lua').buffers()<cr>", "Buffers")
 nnoremap("<leader>m", "<cmd>lua require('fzf-lua').marks()<cr>", "Marks")
-nnoremap("<leader>o", "<cmd>lua require('fzf-lua').lsp_document_symbols()<cr>", "Symbols outline")
+nnoremap("<leader>o", "<cmd>lua require('portal').jump_backward()<cr>", "Portal: Jump backward")
+nnoremap("<leader>i", "<cmd>lua require('portal').jump_forward()<cr>", "Portal: Jump backward")
 nnoremap("<leader>p", "<cmd>lua require('neoclip.fzf')()<cr>", "Clipboard history")
+nnoremap("<leader>r", "<cmd>lua vim.lsp.buf.rename()<cr>", "LSP: Rename")
 
 m.nname("<leader>d", "Diffview")
 nnoremap("<leader>dd", "<cmd>DiffviewOpen<cr>", "Diffview: Open")
 nnoremap("<leader>df", "<cmd>DiffviewFileHistory<cr>", "Diffview: File history")
 vnoremap("<leader>df", ":DiffviewFileHistory<cr>", "Diffview: File history")
+
+nnoremap("<space>b", "<cmd>DapToggleBreakpoint<cr>", "DAP: Toggle breakpoint")
+nnoremap("<space>k", "<cmd>lua require('dapui').eval()<cr>", "DAP: Evaluate")
+vnoremap("<space>k", "<cmd>lua require('dapui').eval()<cr>", "DAP: Evaluate")
 
 m.nname("<leader>t", "Trouble")
 nnoremap("<leader>tt", "<cmd>TroubleToggle<cr>", "Trouble: Toggle")
@@ -674,7 +660,7 @@ nnoremap("gr", "<cmd>lua require('fzf-lua').lsp_references()<cr>", "LSP: Referen
 nnoremap("gi", "<cmd>lua require('fzf-lua').lsp_implementations()<cr>", "LSP: Implementations")
 nnoremap("gq", "<cmd>lua vim.lsp.buf.format()<cr>", "LSP: Format")
 nnoremap("gd", "<cmd>lua vim.lsp.buf.definition()<cr>", "LSP: Definition")
-nnoremap("gD", "<cmd>lua vim.lsp.buf.declaration()<cr>", "LSP: Declaration")
+nnoremap("gD", "<cmd>lua vim.lsp.buf.type_definition()<cr>", "LSP: Declaration")
 
 nnoremap("]q", "<cmd>lua require('trouble').next({ skip_groups = true, jump = true })<cr>", "Trouble: Next item")
 nnoremap(
@@ -700,9 +686,17 @@ vnoremap("<leader>s", "<cmd>lua require('substitute.range').visual()<cr>", "Subs
 nnoremap("sx", "<cmd>lua require('substitute.exchange').operator()<cr>", "Substitute: exchange operator")
 nnoremap("sxx", "<cmd>lua require('substitute.exchange').line()<cr>", "Substitute: exchange line")
 
-tnoremap("<C-t>", "<cmd>exe v:count1 . 'ToggleTerm'<cr>", "silent", "Toggle term")
-nnoremap("<C-t>", "<cmd>exe v:count1 . 'ToggleTerm'<cr>", "silent", "Toggle term")
-inoremap("<C-t>", "<esc><cmd>exe v:count1 . 'ToggleTerm'<cr>", "silent", "Toggle term")
+local toggleterm = function()
+	local tt = require("toggleterm")
+	local count = vim.v.count
+	if count == 0 then
+		tt.toggle_all(false)
+	else
+		tt.toggle_command(nil, count)
+	end
+end
+tnoremap("<C-space>", toggleterm, "silent", "Toggle term")
+nnoremap("<C-space>", toggleterm, "silent", "Toggle term")
 
 -- Shell-style command moves
 cnoremap("<C-a>", "<Home>")
