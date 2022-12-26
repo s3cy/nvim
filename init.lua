@@ -1,19 +1,70 @@
-pcall(require, "impatient")
-
--- Install packer
-local install_path = vim.fn.stdpath("data") .. "/site/pack/packer/start/packer.nvim"
-local is_bootstrap = false
-if vim.fn.empty(vim.fn.glob(install_path)) > 0 then
-	is_bootstrap = true
-	vim.fn.system({ "git", "clone", "--depth", "1", "https://github.com/wbthomason/packer.nvim", install_path })
-	vim.cmd([[packadd packer.nvim]])
+local lazypath = vim.fn.stdpath("data") .. "/lazy/lazy.nvim"
+if not vim.loop.fs_stat(lazypath) then
+	vim.fn.system({
+		"git",
+		"clone",
+		"--filter=blob:none",
+		"--single-branch",
+		"https://github.com/folke/lazy.nvim.git",
+		lazypath,
+	})
 end
+vim.opt.runtimepath:prepend(lazypath)
 
-require("packer").startup(function(use)
-	use("wbthomason/packer.nvim")
-	use("nvim-lua/plenary.nvim")
+require("lazy").setup({
+	{
+		"ellisonleao/gruvbox.nvim",
+		config = function()
+			local colors = require("gruvbox.palette")
+			require("gruvbox").setup({
+				italic = false,
+				overrides = {
+					SignColumn = { bg = colors.dark0 },
+					GruvboxRedSign = { fg = colors.bright_red, bg = colors.dark0 },
+					GruvboxGreenSign = { fg = colors.bright_green, bg = colors.dark0 },
+					GruvboxYellowSign = { fg = colors.bright_yellow, bg = colors.dark0 },
+					GruvboxBlueSign = { fg = colors.bright_blue, bg = colors.dark0 },
+					GruvboxPurpleSign = { fg = colors.bright_purple, bg = colors.dark0 },
+					GruvboxAquaSign = { fg = colors.bright_aqua, bg = colors.dark0 },
+					GruvboxOrangeSign = { fg = colors.bright_orange, bg = colors.dark0 },
+					MatchParen = { bg = colors.dark2, underline = true, bold = false },
+					Visual = { bg = colors.dark4 },
+				},
+			})
+		end,
+	},
+	"nvim-lua/plenary.nvim",
+	"kyazdani42/nvim-web-devicons",
+	"b0o/mapx.nvim",
+	"folke/which-key.nvim",
+	{
+		"dstein64/vim-startuptime",
+		config = function()
+			vim.g.startuptime_exe_args = {
+				"+let g:auto_session_enabled = v:false", -- disable auto-session
+			}
+			vim.g.startuptime_tries = 10
+		end,
+		cmd = "StartupTime",
+	},
+	{
+		"rmagatti/auto-session",
+		config = function()
+			require("auto-session").setup({
+				pre_save_cmds = {
+					"DiffviewClose",
+					"TroubleClose",
+					"DapTerminate",
+					function()
+						require("dapui").close()
+					end,
+				},
+			})
+		end,
+		lazy = false,
+	},
 
-	use({
+	{
 		"neovim/nvim-lspconfig",
 		config = function()
 			require("mason").setup()
@@ -25,11 +76,26 @@ require("packer").startup(function(use)
 				return orig_util_open_floating_preview(contents, syntax, opts, ...)
 			end
 
+			local capabilities = require("cmp_nvim_lsp").default_capabilities()
 			local mason_lspconfig = require("mason-lspconfig")
 			mason_lspconfig.setup()
 			mason_lspconfig.setup_handlers({
 				function(server_name)
-					require("lspconfig")[server_name].setup({})
+					require("lspconfig")[server_name].setup({
+						capabilities = capabilities,
+						settings = {
+							gopls = {
+								analyses = {
+									unusedparams = true,
+									shadow = true,
+								},
+								staticcheck = true,
+							},
+						},
+						init_options = {
+							usePlaceholders = true,
+						},
+					})
 				end,
 				["rust_analyzer"] = function()
 					local extension_path = vim.env.HOME .. "/.vscode/extensions/vadimcn.vscode-lldb-1.8.1/"
@@ -39,6 +105,7 @@ require("packer").startup(function(use)
 					local rt = require("rust-tools")
 					rt.setup({
 						server = {
+							capabilities = capabilities,
 							on_attach = function(_, bufnr)
 								vim.keymap.set("n", "K", rt.hover_actions.hover_actions, { buffer = bufnr })
 							end,
@@ -50,55 +117,48 @@ require("packer").startup(function(use)
 				end,
 			})
 		end,
-		requires = {
+		dependencies = {
 			"williamboman/mason.nvim",
 			"williamboman/mason-lspconfig.nvim",
+			"simrat39/rust-tools.nvim",
 		},
-	})
-	use({
+		event = "BufReadPre",
+	},
+	{
 		"jose-elias-alvarez/null-ls.nvim",
 		config = function()
-			local null_ls = require("null-ls")
-			null_ls.setup({
-				sources = {
-					null_ls.builtins.formatting.stylua,
-				},
-			})
+			vim.defer_fn(function()
+				local null_ls = require("null-ls")
+				null_ls.setup({
+					sources = {
+						null_ls.builtins.formatting.stylua,
+						null_ls.builtins.formatting.dprint,
+					},
+				})
+			end, 50)
 		end,
-	})
-	use("simrat39/rust-tools.nvim")
-	use({
+		event = "VeryLazy",
+	},
+	{
 		"olexsmir/gopher.nvim",
 		ft = "go",
-	})
+	},
 
-	use({
+	{
+		"L3MON4D3/LuaSnip",
+		event = { "InsertEnter" },
+	},
+	{
 		"hrsh7th/nvim-cmp",
 		config = function()
 			local cmp = require("cmp")
 			local luasnip = require("luasnip")
 
-			local super_tab = function(fallback)
-				if cmp.visible() then
-					local entry = cmp.get_selected_entry()
-					if not entry then
-						cmp.select_next_item({ behavior = cmp.SelectBehavior.Select })
-					else
-						cmp.confirm()
-					end
-				elseif luasnip.expand_or_jumpable() then
-					luasnip.expand_or_jump()
-				else
-					fallback() -- The fallback function sends a already mapped key. In this case, it's probably `<Tab>`.
-				end
-			end
-
-			local super_s_tab = function()
-				if cmp.visible() then
-					cmp.confirm()
-				elseif luasnip.jumpable(-1) then
-					luasnip.jump(-1)
-				end
+			local has_words_before = function()
+				unpack = unpack or table.unpack
+				local line, col = unpack(vim.api.nvim_win_get_cursor(0))
+				return col ~= 0
+					and vim.api.nvim_buf_get_lines(0, line - 1, line, true)[1]:sub(col, col):match("%s") == nil
 			end
 
 			local complete = function()
@@ -113,6 +173,36 @@ require("packer").startup(function(use)
 				if not entry then
 					cmp.select_next_item()
 				end
+			end
+
+			local super_tab = function(fallback)
+				if cmp.visible() then
+					local entry = cmp.get_selected_entry()
+					if not entry then
+						cmp.select_next_item({ behavior = cmp.SelectBehavior.Select })
+					else
+						cmp.confirm()
+					end
+				elseif luasnip.expand_or_jumpable() then
+					luasnip.expand_or_jump()
+				elseif has_words_before() then
+					complete()
+				else
+					fallback() -- The fallback function sends a already mapped key. In this case, it's probably `<Tab>`.
+				end
+			end
+
+			local super_s_tab = function()
+				if cmp.visible() then
+					cmp.confirm()
+				elseif luasnip.jumpable(-1) then
+					luasnip.jump(-1)
+				end
+			end
+
+			local abort = function()
+				cmp.abort()
+				cmp.core:reset()
 			end
 
 			cmp.setup({
@@ -132,8 +222,7 @@ require("packer").startup(function(use)
 					["<Down>"] = cmp.mapping.select_next_item(),
 					["<C-u>"] = cmp.mapping.scroll_docs(-4),
 					["<C-d>"] = cmp.mapping.scroll_docs(4),
-					["<C-Space>"] = cmp.mapping(complete, { "i", "s" }),
-					["<C-e>"] = cmp.mapping.abort(),
+					["<C-e>"] = cmp.mapping(abort, { "i", "s" }),
 					["<Tab>"] = cmp.mapping(super_tab, { "i", "s" }),
 					["<S-Tab>"] = cmp.mapping(super_s_tab, { "i", "s" }),
 				},
@@ -145,7 +234,6 @@ require("packer").startup(function(use)
 					{ name = "nvim_lua" }, -- complete neovim's Lua runtime API such vim.lsp.*
 					{ name = "buffer" }, -- source current buffer
 					{ name = "luasnip" }, -- nvim-cmp source for luasnip
-					{ name = "calc" }, -- source for math calculation
 				},
 				window = {
 					completion = cmp.config.window.bordered(),
@@ -167,17 +255,20 @@ require("packer").startup(function(use)
 			})
 		end,
 		event = { "InsertEnter" },
-	})
-	use({ "hrsh7th/cmp-nvim-lsp", after = "nvim-cmp" })
-	use({ "hrsh7th/cmp-nvim-lua", after = "nvim-cmp" })
-	use({ "hrsh7th/cmp-nvim-lsp-signature-help", after = "nvim-cmp" })
-	use({ "hrsh7th/cmp-path", after = "nvim-cmp" })
-	use({ "hrsh7th/cmp-buffer", after = "nvim-cmp" })
-	use({ "L3MON4D3/LuaSnip", after = "nvim-cmp" })
-	use({ "saadparwaiz1/cmp_luasnip", after = "nvim-cmp" })
+		dependencies = {
+			"LuaSnip",
+			"hrsh7th/cmp-nvim-lsp",
+			"hrsh7th/cmp-nvim-lua",
+			"hrsh7th/cmp-nvim-lsp-signature-help",
+			"hrsh7th/cmp-path",
+			"hrsh7th/cmp-buffer",
+			"saadparwaiz1/cmp_luasnip",
+		},
+	},
 
-	use({
+	{
 		"nvim-treesitter/nvim-treesitter",
+		build = ":TSUpdate",
 		config = function()
 			require("nvim-treesitter.configs").setup({
 				ensure_installed = { "vim", "lua" },
@@ -218,111 +309,102 @@ require("packer").startup(function(use)
 						set_jumps = true,
 						goto_next_start = {
 							["]m"] = { query = "@function.outer", desc = "Next method start" },
-							["]]"] = { query = "@class.outer", desc = "Next class start" },
 						},
 						goto_next_end = {
 							["]M"] = { query = "@function.outer", desc = "Next method end" },
-							["]["] = { query = "@class.outer", desc = "Next class end" },
 						},
 						goto_previous_start = {
 							["[m"] = { query = "@function.outer", desc = "Previous method start" },
-							["[["] = { query = "@class.outer", desc = "Previous class start" },
 						},
 						goto_previous_end = {
 							["[M"] = { query = "@function.outer", desc = "Previous method end" },
-							["[]"] = { query = "@class.outer", desc = "Previous class end" },
 						},
 					},
 				},
 			})
 		end,
-	})
-	use({ "nvim-treesitter/nvim-treesitter-textobjects", after = "nvim-treesitter" })
-	use({ "nvim-treesitter/nvim-treesitter-context", after = "nvim-treesitter" })
+		dependencies = {
+			"nvim-treesitter/nvim-treesitter-textobjects",
+		},
+		event = "BufReadPost",
+	},
+	{
+		"nvim-treesitter/nvim-treesitter-context",
+		config = function()
+			require("treesitter-context").setup()
+			vim.api.nvim_set_hl(0, "TreesitterContext", { link = "CursorLine" })
+			vim.api.nvim_set_hl(0, "TreesitterContextLineNumber", { link = "CursorLineNr" })
+		end,
+		event = "BufReadPre",
+	},
 
-	use({
+	{
 		"mfussenegger/nvim-dap",
 		config = function()
-			local dap = require("dap")
-			local dapui = require("dapui")
-			dapui.setup({
-				layouts = {
-					{
-						elements = {
-							"console",
-							"repl",
+			vim.defer_fn(function()
+				local dap = require("dap")
+				local dapui = require("dapui")
+				dapui.setup({
+					layouts = {
+						{
+							elements = {
+								"console",
+								"repl",
+							},
+							size = 0.25,
+							position = "bottom",
 						},
-						size = 0.25,
-						position = "bottom",
-					},
-					{
-						elements = {
-							"watches",
-							"stacks",
-							"breakpoints",
+						{
+							elements = {
+								"watches",
+								"stacks",
+								"breakpoints",
+							},
+							size = 45,
+							position = "left",
 						},
-						size = 45,
-						position = "left",
 					},
-				},
-			})
-			dap.listeners.after.event_initialized["dapui_config"] = function()
-				dapui.open()
-			end
-			dap.listeners.before.event_terminated["dapui_config"] = function()
-				dapui.close()
-			end
-			dap.listeners.before.event_exited["dapui_config"] = function()
-				dapui.close()
-			end
-			require("nvim-dap-virtual-text").setup()
+				})
+				dap.listeners.after.event_initialized["dapui_config"] = function()
+					dapui.open()
+				end
+				dap.listeners.before.event_terminated["dapui_config"] = function()
+					dapui.close()
+				end
+				dap.listeners.before.event_exited["dapui_config"] = function()
+					dapui.close()
+				end
+				require("nvim-dap-virtual-text").setup()
+			end, 50)
 		end,
-		requires = {
+		dependencies = {
 			"rcarriga/nvim-dap-ui",
 			"theHamsta/nvim-dap-virtual-text",
 		},
-	})
-	use({
+		event = "VeryLazy",
+	},
+	{
 		"leoluz/nvim-dap-go",
 		config = function()
 			require("dap-go").setup()
 			vim.cmd([[
-				command! GoDebug :lua require"dap-go".debug_test()
-				command! GoDebugLast :lua require"dap-go".debug_last_test()
-			]])
+ 				command! GoDebug :lua require"dap-go".debug_test()
+ 				command! GoDebugLast :lua require"dap-go".debug_last_test()
+ 			]])
 		end,
 		ft = "go",
-	})
+	},
 
-	use({
+	{
 		"ibhagwan/fzf-lua",
 		config = function()
 			local fzf_lua = require("fzf-lua")
 			fzf_lua.setup({})
 			fzf_lua.register_ui_select({}, true) -- silent = true
 		end,
-	})
-
-	use("ellisonleao/gruvbox.nvim")
-	use("kyazdani42/nvim-web-devicons")
-
-	use("dstein64/vim-startuptime")
-	use("lewis6991/impatient.nvim")
-
-	use({
-		"numToStr/Comment.nvim",
-		config = function()
-			require("Comment").setup()
-		end,
-	})
-	use({
-		"kylechui/nvim-surround",
-		config = function()
-			require("nvim-surround").setup()
-		end,
-	})
-	use("RRethy/vim-illuminate")
-	use({
+		event = "VeryLazy",
+	},
+	{
 		"nvim-lualine/lualine.nvim",
 		config = function()
 			require("lualine").setup({
@@ -348,8 +430,8 @@ require("packer").startup(function(use)
 					lualine_z = {},
 				},
 				tabline = {
-					lualine_a = { "windows" },
-					lualine_b = {},
+					lualine_a = {},
+					lualine_b = { "windows" },
 					lualine_c = {},
 					lualine_x = {},
 					lualine_y = {
@@ -362,40 +444,20 @@ require("packer").startup(function(use)
 					lualine_z = { "tabs" },
 				},
 				extensions = {
-					"nvim-tree",
 					"toggleterm",
 				},
 			})
 		end,
-		requires = {
+		dependencies = {
 			"arkav/lualine-lsp-progress",
 		},
-	})
-	use("folke/trouble.nvim")
-	use("folke/which-key.nvim")
-	use("b0o/mapx.nvim")
-	use({
-		"olimorris/persisted.nvim",
-		config = function()
-			require("persisted").setup({
-				use_git_branch = true,
-				before_save = function()
-					vim.cmd("DiffviewClose")
-					vim.cmd("TroubleClose")
-					vim.cmd("DapTerminate")
-					require("dapui").close()
-				end,
-				should_autosave = function()
-					if vim.bo.filetype == "alpha" then
-						return false
-					end
-					return true
-				end,
-			})
-			-- require("telescope").load_extension("persisted")
-		end,
-	})
-	use({
+		event = "VeryLazy",
+	},
+	{
+		"folke/trouble.nvim",
+		cmd = { "TroubleToggle", "TroubleClose" },
+	},
+	{
 		"akinsho/toggleterm.nvim",
 		config = function()
 			require("toggleterm").setup({
@@ -403,28 +465,70 @@ require("packer").startup(function(use)
 				shade_terminals = false,
 			})
 		end,
-	})
-	use("s3cy/term-util.nvim")
-	use({
+		keys = "<C-space>",
+	},
+	{
+		"sindrets/diffview.nvim",
+		cmd = { "DiffviewOpen", "DiffviewClose", "DiffviewToggleFiles", "DiffviewFocusFiles" },
+	},
+
+	{
+		"numToStr/Comment.nvim",
+		config = function()
+			require("Comment").setup()
+		end,
+		keys = {
+			{ "gc", nil, mode = { "n", "x" } },
+			{ "gb", nil, mode = { "n", "x" } },
+			"gcc",
+			"gbc",
+		},
+	},
+	{
+		"kylechui/nvim-surround",
+		config = function()
+			require("nvim-surround").setup()
+		end,
+		event = "VeryLazy",
+	},
+	{
+		"RRethy/vim-illuminate",
+		config = function()
+			require("illuminate").configure({
+				delay = 0,
+			})
+			vim.api.nvim_set_hl(0, "IlluminatedWordText", { link = "MatchParen" })
+			vim.api.nvim_set_hl(0, "IlluminatedWordRead", { link = "MatchParen" })
+			vim.api.nvim_set_hl(0, "IlluminatedWordWrite", { link = "MatchParen" })
+		end,
+		event = "BufReadPost",
+	},
+	{
+		"s3cy/term-util.nvim",
+		event = "VeryLazy",
+	},
+	{
 		"gbprod/substitute.nvim",
 		config = function()
 			require("substitute").setup()
 		end,
-	})
-	use("sindrets/diffview.nvim")
-	use({
+	},
+	"cshuaimin/ssr.nvim",
+	{
+		"andymass/vim-matchup",
+		event = "BufReadPost",
+	},
+	{
 		"chentoast/marks.nvim",
 		config = function()
 			require("marks").setup({
 				force_write_shada = true,
 			})
 		end,
-	})
-	use({
+		keys = "m",
+	},
+	{
 		"AckslD/nvim-neoclip.lua",
-		requires = {
-			{ "kkharji/sqlite.lua", module = "sqlite" },
-		},
 		config = function()
 			require("neoclip").setup({
 				enable_persistent_history = true,
@@ -442,41 +546,42 @@ require("packer").startup(function(use)
 				},
 			})
 		end,
-	})
-	use({
-		"goolord/alpha-nvim",
+		dependencies = {
+			"kkharji/sqlite.lua",
+		},
+		event = "VeryLazy",
+	},
+	{
+		"ojroques/nvim-osc52",
+		keys = { '"+y', '"*y' },
+	},
+	"cbochs/portal.nvim",
+	{
+		"andrewferrier/debugprint.nvim",
 		config = function()
-			local alpha = require("alpha")
-			local dashboard = require("alpha.themes.dashboard")
-			dashboard.section.header.val = {
-				[[                               __                ]],
-				[[  ___     ___    ___   __  __ /\_\    ___ ___    ]],
-				[[ / _ `\  / __`\ / __`\/\ \/\ \\/\ \  / __` __`\  ]],
-				[[/\ \/\ \/\  __//\ \_\ \ \ \_/ |\ \ \/\ \/\ \/\ \ ]],
-				[[\ \_\ \_\ \____\ \____/\ \___/  \ \_\ \_\ \_\ \_\]],
-				[[ \/_/\/_/\/____/\/___/  \/__/    \/_/\/_/\/_/\/_/]],
-			}
-			dashboard.section.buttons.val = {
-				dashboard.button("f", "  Find file", ":lua require('fzf-lua').files()<cr>"),
-				dashboard.button("g", "  Grep word", ":lua require('fzf-lua').grep({search = ''})<cr>"),
-				dashboard.button("l", "  Load session", ":SessionLoad<cr>"),
-				dashboard.button("q", "  Quit NVIM", ":qa<cr>"),
-			}
-			dashboard.config.opts.noautocmd = true
-			alpha.setup(dashboard.config)
+			require("debugprint").setup({
+				create_keymaps = false,
+				display_counter = false,
+			})
 		end,
-	})
-	use("ojroques/nvim-osc52")
-	use("cbochs/portal.nvim")
-
-	if is_bootstrap then
-		require("packer").sync()
-	end
-end)
-
-if is_bootstrap then
-	return
-end
+	},
+}, {
+	defaults = { lazy = true },
+	performance = {
+		rtp = {
+			disabled_plugins = {
+				"gzip",
+				"matchit",
+				"matchparen",
+				"netrwPlugin",
+				"tarPlugin",
+				"tohtml",
+				"tutor",
+				"zipPlugin",
+			},
+		},
+	},
+})
 
 vim.opt.number = true
 vim.opt.relativenumber = true
@@ -486,6 +591,7 @@ vim.opt.shiftwidth = 4
 vim.opt.undofile = true
 vim.opt.cursorline = true
 vim.opt.signcolumn = "yes"
+vim.opt.showtabline = 2 -- always
 vim.g.loaded_netrw = 1 -- disable netrw
 vim.g.loaded_netrwPlugin = 1
 
@@ -498,31 +604,9 @@ vim.wo.foldexpr = "nvim_treesitter#foldexpr()"
 vim.wo.foldenable = false
 
 vim.opt.background = "dark"
-local colors = require("gruvbox.palette")
-require("gruvbox").setup({
-	italic = false,
-	overrides = {
-		SignColumn = { bg = colors.dark0 },
-		GruvboxRedSign = { fg = colors.bright_red, bg = colors.dark0 },
-		GruvboxGreenSign = { fg = colors.bright_green, bg = colors.dark0 },
-		GruvboxYellowSign = { fg = colors.bright_yellow, bg = colors.dark0 },
-		GruvboxBlueSign = { fg = colors.bright_blue, bg = colors.dark0 },
-		GruvboxPurpleSign = { fg = colors.bright_purple, bg = colors.dark0 },
-		GruvboxAquaSign = { fg = colors.bright_aqua, bg = colors.dark0 },
-		GruvboxOrangeSign = { fg = colors.bright_orange, bg = colors.dark0 },
-	},
-})
 vim.cmd([[
 colorscheme gruvbox
 ]])
-
--- Automatically source and re-compile packer whenever you save this init.lua
-local packer_group = vim.api.nvim_create_augroup("Packer", { clear = true })
-vim.api.nvim_create_autocmd("BufWritePost", {
-	command = "source <afile> | PackerCompile",
-	group = packer_group,
-	pattern = vim.fn.expand("$MYVIMRC"),
-})
 
 -- Remember cursor position
 vim.api.nvim_create_autocmd(
@@ -642,11 +726,11 @@ nnoremap("<leader>r", "<cmd>lua vim.lsp.buf.rename()<cr>", "LSP: Rename")
 m.nname("<leader>d", "Diffview")
 nnoremap("<leader>dd", "<cmd>DiffviewOpen<cr>", "Diffview: Open")
 nnoremap("<leader>df", "<cmd>DiffviewFileHistory<cr>", "Diffview: File history")
-vnoremap("<leader>df", ":DiffviewFileHistory<cr>", "Diffview: File history")
+xnoremap("<leader>df", ":DiffviewFileHistory<cr>", "Diffview: File history")
 
 nnoremap("<space>b", "<cmd>DapToggleBreakpoint<cr>", "DAP: Toggle breakpoint")
 nnoremap("<space>k", "<cmd>lua require('dapui').eval()<cr>", "DAP: Evaluate")
-vnoremap("<space>k", "<cmd>lua require('dapui').eval()<cr>", "DAP: Evaluate")
+xnoremap("<space>k", "<cmd>lua require('dapui').eval()<cr>", "DAP: Evaluate")
 
 m.nname("<leader>t", "Trouble")
 nnoremap("<leader>tt", "<cmd>TroubleToggle<cr>", "Trouble: Toggle")
@@ -658,9 +742,30 @@ nnoremap("<leader>tq", "<cmd>TroubleToggle quickfix<cr>", "Trouble: Quickfix")
 nnoremap("ga", "<cmd>lua vim.lsp.buf.code_action()<cr>", "LSP: Code action")
 nnoremap("gr", "<cmd>lua require('fzf-lua').lsp_references()<cr>", "LSP: References")
 nnoremap("gi", "<cmd>lua require('fzf-lua').lsp_implementations()<cr>", "LSP: Implementations")
-nnoremap("gq", "<cmd>lua vim.lsp.buf.format()<cr>", "LSP: Format")
+nnoremap("gq", "<cmd>lua vim.lsp.buf.format({async = true})<cr>", "LSP: Format")
 nnoremap("gd", "<cmd>lua vim.lsp.buf.definition()<cr>", "LSP: Definition")
 nnoremap("gD", "<cmd>lua vim.lsp.buf.type_definition()<cr>", "LSP: Declaration")
+
+nnoremap("gp", function()
+	return require("debugprint").debugprint({ motion = true })
+end, "expr", "DebugPrint: Operator")
+nnoremap("gP", function()
+	return require("debugprint").debugprint({ motion = true, above = true })
+end, "expr", "DebugPrintAbove: Operator")
+xnoremap("gp", function()
+	return require("debugprint").debugprint({ variable = true })
+end, "expr", "DebugPrint: Operator")
+xnoremap("gP", function()
+	return require("debugprint").debugprint({ variable = true, above = true })
+end, "expr", "DebugPrintAbove: Operator")
+nnoremap("gpp", function()
+	return require("debugprint").debugprint()
+end, "expr", "DebugPrint")
+nnoremap("gpP", function()
+	return require("debugprint").debugprint({ above = true })
+end, "expr", "DebugPrintAbove")
+nnoremap("gpd", "<cmd>DeleteDebugPrints<cr>", "DebugPrint: Delete")
+xnoremap("gpd", ":DeleteDebugPrints<cr>", "DebugPrint: Delete")
 
 nnoremap("]q", "<cmd>lua require('trouble').next({ skip_groups = true, jump = true })<cr>", "Trouble: Next item")
 nnoremap(
@@ -671,17 +776,16 @@ nnoremap(
 nnoremap("]Q", "<cmd>lua require('trouble').last({ skip_groups = true, jump = true })<cr>", "Trouble: Last item")
 nnoremap("[Q", "<cmd>lua require('trouble').first({ skip_groups = true, jump = true })<cr>", "Trouble: First item")
 
-nnoremap("]r", "<cmd>lua require('illuminate').goto_next_reference(true)<cr>", "Next reference")
-nnoremap("[r", "<cmd>lua require('illuminate').goto_prev_reference(true)<cr>", "Previous reference")
+nnoremap("]]", "<cmd>lua require('illuminate').goto_next_reference(true)<cr>", "Next reference")
+nnoremap("[[", "<cmd>lua require('illuminate').goto_prev_reference(true)<cr>", "Previous reference")
 nnoremap("K", "<cmd>lua vim.lsp.buf.hover()<cr>", "LSP: hover")
 
 nnoremap("s", "<cmd>lua require('substitute').operator()<cr>", "Substitute: operator")
 nnoremap("ss", "<cmd>lua require('substitute').line()<cr>", "Substitute: line")
-vnoremap("s", "<cmd>lua require('substitute').visual()<cr>", "Substitute: visual")
+xnoremap("s", "<cmd>lua require('substitute').visual()<cr>", "Substitute: visual")
 
-nnoremap("<leader>s", "<cmd>lua require('substitute.range').operator()<cr>", "Substitute: range operator")
-nnoremap("<leader>ss", "<cmd>lua require('substitute.range').word()<cr>", "Substitute: range word")
-vnoremap("<leader>s", "<cmd>lua require('substitute.range').visual()<cr>", "Substitute: range visual")
+nnoremap("<leader>s", "<cmd>lua require('ssr').open()<cr>", "Structural search and replace")
+xnoremap("<leader>s", "<cmd>lua require('ssr').open()<cr>", "Structural search and replace")
 
 nnoremap("sx", "<cmd>lua require('substitute.exchange').operator()<cr>", "Substitute: exchange operator")
 nnoremap("sxx", "<cmd>lua require('substitute.exchange').line()<cr>", "Substitute: exchange line")
@@ -726,3 +830,11 @@ tnoremap("<M-q>", "<cmd>wincmd q<cr>", "Quit a window")
 tnoremap("<M-s>", "<cmd>wincmd s<cr>", "Split window")
 tnoremap("<M-v>", "<cmd>wincmd v<cr>", "Split window vertically")
 tnoremap("<Esc>", "<C-\\><C-n>", "Exit insert mode")
+
+-- `Q` to edit the default register; `"aQ` to edit register 'a'.
+-- TIPS: macros are stored in registers.
+nnoremap(
+	"Q",
+	":<C-u><C-r><C-r>='let @' . v:register . ' = ' . string(getreg(v:register))<CR><C-f><LEFT>",
+	"Edit Registers"
+)
