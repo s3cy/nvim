@@ -51,7 +51,9 @@ require("lazy").setup({
 		"rmagatti/auto-session",
 		config = function()
 			require("auto-session").setup({
+				log_level = "error",
 				pre_save_cmds = {
+					"NvimTreeClose",
 					"DiffviewClose",
 					"TroubleClose",
 					"DapTerminate",
@@ -83,6 +85,9 @@ require("lazy").setup({
 				function(server_name)
 					require("lspconfig")[server_name].setup({
 						capabilities = capabilities,
+						on_attach = function(client, bufnr)
+							require("lsp-inlayhints").on_attach(client, bufnr)
+						end,
 						settings = {
 							gopls = {
 								analyses = {
@@ -90,6 +95,9 @@ require("lazy").setup({
 									shadow = true,
 								},
 								staticcheck = true,
+								hints = {
+									assignVariableTypes = true,
+								},
 							},
 						},
 						init_options = {
@@ -106,9 +114,15 @@ require("lazy").setup({
 					rt.setup({
 						server = {
 							capabilities = capabilities,
-							on_attach = function(_, bufnr)
+							on_attach = function(client, bufnr)
+								require("lsp-inlayhints").on_attach(client, bufnr)
 								vim.keymap.set("n", "K", rt.hover_actions.hover_actions, { buffer = bufnr })
 							end,
+						},
+						tools = {
+							inlay_hints = {
+								auto = false,
+							},
 						},
 						dap = {
 							adapter = require("rust-tools.dap").get_codelldb_adapter(codelldb_path, liblldb_path),
@@ -123,6 +137,24 @@ require("lazy").setup({
 			"simrat39/rust-tools.nvim",
 		},
 		event = "BufReadPre",
+	},
+	{
+		"tamago324/nlsp-settings.nvim",
+		config = function()
+			require("nlspsettings").setup({
+				append_default_schemas = true,
+				open_strictly = true,
+			})
+		end,
+		-- cmd = { "LspSettings" },
+		lazy = false,
+	},
+	{
+		"lvimuser/lsp-inlayhints.nvim",
+		branch = "anticonceal",
+		config = function()
+			require("lsp-inlayhints").setup()
+		end,
 	},
 	{
 		"jose-elias-alvarez/null-ls.nvim",
@@ -374,6 +406,15 @@ require("lazy").setup({
 				dap.listeners.before.event_exited["dapui_config"] = function()
 					dapui.close()
 				end
+
+				dap.adapters.codelldb = {
+					type = "server",
+					port = "${port}",
+					executable = {
+						command = "codelldb",
+						args = { "--port", "${port}" },
+					},
+				}
 				require("nvim-dap-virtual-text").setup()
 			end, 50)
 		end,
@@ -468,6 +509,13 @@ require("lazy").setup({
 		keys = "<C-space>",
 	},
 	{
+		"nvim-tree/nvim-tree.lua",
+		config = function()
+			require("nvim-tree").setup()
+		end,
+		cmd = { "NvimTreeToggle", "NvimTreeFocus", "NvimTreeFindFile", "NvimTreeCollapse", "NvimTreeClose" },
+	},
+	{
 		"sindrets/diffview.nvim",
 		cmd = { "DiffviewOpen", "DiffviewClose", "DiffviewToggleFiles", "DiffviewFocusFiles" },
 	},
@@ -507,25 +555,27 @@ require("lazy").setup({
 		"s3cy/term-util.nvim",
 		event = "VeryLazy",
 	},
-	{
-		"gbprod/substitute.nvim",
-		config = function()
-			require("substitute").setup()
-		end,
-	},
 	"cshuaimin/ssr.nvim",
 	{
 		"andymass/vim-matchup",
 		event = "BufReadPost",
 	},
 	{
-		"chentoast/marks.nvim",
-		config = function()
-			require("marks").setup({
-				force_write_shada = true,
-			})
-		end,
-		keys = "m",
+		"tpope/vim-abolish",
+		event = "CmdlineEnter",
+		keys = {
+			{ "crc", nil, desc = "camelCase" },
+			{ "crm", nil, desc = "MixedCase" },
+			{ "cr_", nil, desc = "snake_case" },
+			{ "crs", nil, desc = "snake_case" },
+			{ "cru", nil, desc = "SNAKE_UPPERCASE" },
+			{ "crU", nil, desc = "SNAKE_UPPERCASE" },
+			{ "cr-", nil, desc = "dash-case" },
+			{ "crk", nil, desc = "kebab-case" },
+			{ "cr.", nil, desc = "dot.case" },
+			{ "cr<space>", nil, desc = "space case" },
+			{ "crt", nil, desc = "Title Case" },
+		},
 	},
 	{
 		"AckslD/nvim-neoclip.lua",
@@ -585,7 +635,8 @@ require("lazy").setup({
 
 vim.opt.number = true
 vim.opt.relativenumber = true
-vim.wo.wrap = false
+vim.opt.ignorecase = true
+vim.opt.smartcase = true
 vim.opt.tabstop = 4
 vim.opt.shiftwidth = 4
 vim.opt.undofile = true
@@ -713,6 +764,7 @@ vim.api.nvim_create_autocmd("CursorHold", {
 
 -- Keymapping
 m = require("mapx").setup({ global = "force", whichkey = true })
+nnoremap("<leader><leader>", "<cmd>lua require('fzf-lua').resume()<cr>", "Args")
 nnoremap("<leader>a", "<cmd>lua require('fzf-lua').args()<cr>", "Args")
 nnoremap("<leader>f", "<cmd>lua require('fzf-lua').files()<cr>", "Find files")
 nnoremap("<leader>g", "<cmd>lua require('fzf-lua').grep({search = ''})<cr>", "Grep string")
@@ -722,6 +774,9 @@ nnoremap("<leader>o", "<cmd>lua require('portal').jump_backward()<cr>", "Portal:
 nnoremap("<leader>i", "<cmd>lua require('portal').jump_forward()<cr>", "Portal: Jump backward")
 nnoremap("<leader>p", "<cmd>lua require('neoclip.fzf')()<cr>", "Clipboard history")
 nnoremap("<leader>r", "<cmd>lua vim.lsp.buf.rename()<cr>", "LSP: Rename")
+
+nnoremap("<leader>e", "<cmd>NvimTreeToggle<cr>", "NvimTree: Toggle")
+nnoremap("-", "<cmd>NvimTreeFindFile<cr>", "NvimTree: Focus file")
 
 m.nname("<leader>d", "Diffview")
 nnoremap("<leader>dd", "<cmd>DiffviewOpen<cr>", "Diffview: Open")
@@ -776,19 +831,12 @@ nnoremap(
 nnoremap("]Q", "<cmd>lua require('trouble').last({ skip_groups = true, jump = true })<cr>", "Trouble: Last item")
 nnoremap("[Q", "<cmd>lua require('trouble').first({ skip_groups = true, jump = true })<cr>", "Trouble: First item")
 
-nnoremap("]]", "<cmd>lua require('illuminate').goto_next_reference(true)<cr>", "Next reference")
-nnoremap("[[", "<cmd>lua require('illuminate').goto_prev_reference(true)<cr>", "Previous reference")
+nnoremap("]r", "<cmd>lua require('illuminate').goto_next_reference(true)<cr>", "Next reference")
+nnoremap("[r", "<cmd>lua require('illuminate').goto_prev_reference(true)<cr>", "Previous reference")
 nnoremap("K", "<cmd>lua vim.lsp.buf.hover()<cr>", "LSP: hover")
-
-nnoremap("s", "<cmd>lua require('substitute').operator()<cr>", "Substitute: operator")
-nnoremap("ss", "<cmd>lua require('substitute').line()<cr>", "Substitute: line")
-xnoremap("s", "<cmd>lua require('substitute').visual()<cr>", "Substitute: visual")
 
 nnoremap("<leader>s", "<cmd>lua require('ssr').open()<cr>", "Structural search and replace")
 xnoremap("<leader>s", "<cmd>lua require('ssr').open()<cr>", "Structural search and replace")
-
-nnoremap("sx", "<cmd>lua require('substitute.exchange').operator()<cr>", "Substitute: exchange operator")
-nnoremap("sxx", "<cmd>lua require('substitute.exchange').line()<cr>", "Substitute: exchange line")
 
 local toggleterm = function()
 	local tt = require("toggleterm")
@@ -801,6 +849,8 @@ local toggleterm = function()
 end
 tnoremap("<C-space>", toggleterm, "silent", "Toggle term")
 nnoremap("<C-space>", toggleterm, "silent", "Toggle term")
+tnoremap("<M-space>", toggleterm, "silent", "Toggle term")
+nnoremap("<M-space>", toggleterm, "silent", "Toggle term")
 
 -- Shell-style command moves
 cnoremap("<C-a>", "<Home>")
